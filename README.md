@@ -1,15 +1,15 @@
-# AXCL 使用手册
+# AXCL User Guide
 
 [Web Preview](https://axcl-docs.readthedocs.io/zh-cn/latest/)
 
-## 1. 项目背景
+## 1. Project Background
 
-**AXCL** 是基于 AX650N 的 PCIE EP 产品 Host API。
+**AXCL** is a Host API for PCIe EP products based on the AX650N.
 
-- 提供 AXCL 使用 NPU 计算的相关 API 和示例;
-- 促进社区开发人员共同维护文档。
+- Provides APIs and examples for using AXCL with NPU computation;
+- Encourages community-driven documentation maintenance.
 
-## 2. 本地编译指南
+## 2. Local build guide
 
 ### 2.1 git clone
 
@@ -17,7 +17,7 @@
 git clone https://github.com/AXERA-TECH/axcl-docs.git
 ```
 
-目录如下:
+Directory structure:
 
 ```bash
 .
@@ -56,29 +56,29 @@ git clone https://github.com/AXERA-TECH/axcl-docs.git
     └── media
 ```
 
-### 2.2 编译
+### 2.2 Build
 
-安装依赖
+Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-在项目根目录下执行以下命令
+Run the following commands from the project root
 
 ```bash
 $ make clean
 $ make html
 ```
 
-### 2.3 本地预览
+### 2.3 Local preview
 
-编译后，使用浏览器查看它 `build/html/index.html`
+After building, open `build/html/index.html` in your browser to preview the documentation
 
-## 3. 参考设计
+## 3. References
 
-这个项目是基于Sphinx，更多关于Sphinx的信息可以在这里找到 https://www.sphinx-doc.org/en/master/
+This project is based on Sphinx. For more information: https://www.sphinx-doc.org/en/master/
 
-## 4. 在线发布
+## 4. Online publishing
 
-基于 [ReadtheDocs](https://readthedocs.org/) 平台代理在线 Web 服务。
+Hosted on ReadTheDocs using the ReadTheDocs platform.

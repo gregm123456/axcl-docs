@@ -1,12 +1,12 @@
-# NPU 示例
+# NPU Examples
 
-## NPU 工具链
+## NPU Toolchain
 
-经常在 AI 芯片上部署算法模型的同学都知道，想要把模型部署到芯片上的 NPU 中运行，都需要使用芯片原厂提供的 NPU 工具链，这里我们使用的是 Pulsar2。
+When deploying models to the NPU on AI chips, you typically use a vendor-provided NPU toolchain; in this guide we use Pulsar2.
 
 ![](../res/pulsar2.png)
 
-- [Pulsar2 在线文档](https://pulsar2-docs.readthedocs.io/zh-cn/latest/index.html)
+- [Pulsar2 documentation](https://pulsar2-docs.readthedocs.io/zh-cn/latest/index.html)
   - [安装指导](https://pulsar2-docs.readthedocs.io/zh-cn/latest/user_guides_quick/quick_start_prepare.html)
   - [快速上手](https://pulsar2-docs.readthedocs.io/zh-cn/latest/user_guides_quick/quick_start_ax650.html)
   - [NPU 算子支持列表](https://pulsar2-docs.readthedocs.io/zh-cn/latest/appendix/op_support_list_ax650.html)
@@ -14,12 +14,12 @@
 
 ## AXCL-Samples
 
-AXCL-Samples 由 爱芯元智 主导开发。该项目实现了常见的深度学习开源算法在基于 爱芯元智 的 SoC 实现的 PCIE算力卡 产品上的运行的示例代码，方便社区开发者进行快速评估和适配。
+AXCL-Samples is maintained by Axera Technology. It provides example code that demonstrates common deep learning algorithms running on Axera SoC-based PCIe accelerator cards, helping developers evaluate and adapt applications quickly.
 
 - [axcl-samples](https://github.com/AXERA-TECH/axcl-samples)；
 - 该仓库采用最简单的方式展示常用的开源模型，例如 Ultralytics 的 YOLO 系列，DepthAnything，YOLO-Worldv2 等等。
 
-### 获取示例
+### Getting the samples
 
 - AXCL-Samples 的预编译 ModelZoo 请参考
   - [百度网盘](https://pan.baidu.com/s/1MAAKElTI2wgiDehvd2Q1lA?pwd=p1k6)
@@ -165,17 +165,17 @@ Repeat 1 times, avg time 44.02 ms, max_time 44.02 ms, min_time 44.02 ms
 ```
 ![](../res/depth_anything_out.png)
 
-## LLM 示例
+## LLM Examples
 
-- 模型转请参考[大模型编译文档](https://pulsar2-docs.readthedocs.io/zh-cn/latest/appendix/build_llm.html)
+- For model conversion, see the [Large model build documentation](https://pulsar2-docs.readthedocs.io/zh-cn/latest/appendix/build_llm.html)
 - 预编译 ModelZoo-LLM 请参考[百度网盘](https://pan.baidu.com/s/1grJNjcpUln-fDBisJxuvCA?pwd=mys8)
 - 上板执行程序 main_pcie 请参考[ax-llm pcie 分支](https://github.com/AXERA-TECH/ax-llm/tree/axcl-llm-prefill)
 
-### Tokenizer 解析器
+### Tokenizer Server
 
-**tokenizer 解析准备**
+**Tokenizer preparation**
 
-为了更方便、更准确的进行 LLM DEMO 展示，我们采用 transformers 内置的 tokenizer 解析服务，因此需要安装 python 环境和 transformers 库
+For easier and more accurate LLM demos we use the tokenizer service implemented with the transformers library; install Python and the required transformers package.
 
 安装 miniconda
 
@@ -200,9 +200,9 @@ pip install transformers==4.41.1 -i https://mirrors.aliyun.com/pypi/simple
 
 ### Qwen2.5
 
-拷贝相关文件到 Host
+Copy related files to the Host
 
-**文件说明**
+**File layout**
 
 ```
 (base) axera@raspberrypi:~/qwen2.5-0.5b-prefill-ax650 $ tree
@@ -225,7 +225,7 @@ pip install transformers==4.41.1 -i https://mirrors.aliyun.com/pypi/simple
 └── run_qwen2.5_0.5B_prefill_pcie.sh
 ```
 
-**启动 tokenizer 解析器**
+**Start the tokenizer server**
 
 运行 tokenizer 服务，Host ip 默认为 localhost，端口号设置为 12345，正在运行后信息如下
 
@@ -244,7 +244,7 @@ hello world<|im_end|>
 http://localhost:12345
 ```
 
-**运行 Qwen 2.5**
+**Run Qwen 2.5**
 
 ```
 (base) axera@raspberrypi:~/qtang/llama_axera_cpp $ ./run_qwen2_0.5B_prefill_pcie.sh
