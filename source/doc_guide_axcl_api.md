@@ -1,10 +1,11 @@
 # SDK API
 
-## 概览
-`AXCL API` 分为两部分，第一部分是 `Runtime API`，第二部分是 `Native API`。其中 `Runtime API` 是独立的 `API` 组合，目前仅包含用于内存管理的 `Memory` 和用于驱动 `爱芯通元(TM)` `NPU` 工作的 `Engine API`。当 `AXCL API` 被用于计算卡形态，不使用编解码功能时，只使用 `Runtime API` 即可完成全部计算任务。当需要使用编解码功能时，需要了解 `Native API` 及 `FFMPEG` 模块的有关内容。
+## Overview
+`AXCL API` is divided into two parts: the `Runtime API` and the `Native API`.
+The `Runtime API` is a self-contained set of APIs that currently include `Memory` APIs for memory management and `Engine` APIs to drive the Axera NPU. For compute-only card deployments without encoding/decoding features, the `Runtime API` is sufficient. If you need encoding/decoding, also refer to the `Native API` and the `FFMPEG` integration.
 
-## runtime
-使用 `Runtime API` 可以在宿主系统上调用 `NPU` 完成计算功能，其中 `Memory API` 可以分别在宿主和计算卡上申请释放内存空间，`Engine API` 可以完成模型初始化、`IO` 设置到推理的全部 `NPU` 功能。
+## Runtime
+The `Runtime API` allows the host system to invoke the NPU for compute tasks. The `Memory` APIs cover allocation/deallocation on both host and device, while the `Engine` APIs cover model initialization, IO setup, and execution of inference on the NPU.
 
 ### runtime
 (axclinit)=
@@ -14,22 +15,22 @@
 axclError axclInit(const char *config);
 ```
 
-**使用说明**：
+**Description**:
 
-系统初始化，同步接口。
+System initialization; synchronous call.
 
-**参数**：
+**Parameters**:
 
-- `config [IN]`：指定json配置文件路径。
-  - 用户可以通过json配置文件配置系统参数，目前支持日志级别，格式[参阅FAQ](https://github.com/AXERA-TECH/axcl-docs/wiki/0.FAQ#how-to-configure-runtime-log--level)。
-  - 允许传入NULL或者不存在的json文件，则系统使用默认配置。
+- `config [IN]`: Path to a JSON configuration file.
+  - The JSON file may specify runtime options such as log level; see [FAQ](https://github.com/AXERA-TECH/axcl-docs/wiki/0.FAQ#how-to-configure-runtime-log--level) for details.
+  - Passing NULL or a missing JSON file will cause the runtime to use default configuration.
 
 
-**限制**：
+**Restrictions**:
 
-- 和 [`axclFinalize`](#axclfinalize) 成对调用对系统清理。
-- 当调用任何AXCL接口开发应用时，必须首先调用本接口。
-- 一个进程内只调用一次本接口。
+- Must be paired with [`axclFinalize`](#axclfinalize) to properly clean up resources.
+- Must be called before using any other AXCL APIs in an application.
+- Should only be called once per process.
 
 ---
 (axclfinalize)=
@@ -39,15 +40,15 @@ axclError axclInit(const char *config);
 axclError axclFinalize();
 ```
 
-**使用说明**：
+**Description**:
 
-系统去初始化，释放进程内AXCL的资源，同步接口。
+De-initialize the runtime and free AXCL resources associated with the process; synchronous call.
 
-**限制**：
+**Restrictions**:
 
-- 和 [`axclInit`](#axclinit) 成对调用。
-- 应用进程退出前，应显示调用本接口去初始化。
-- 对于C++应用，不建议在析构函数中调用，否则在进程退出时可能因为单例析构顺序不确定导致进程异常退出。
+- Must be paired with [`axclInit`](#axclinit).
+- Applications should explicitly call this before exiting.
+- For C++ programs, avoid calling this in destructors because the undefined order of global destructors may cause crashes on process exit.
 
 ---
 (axclrtgetversion)=
@@ -57,19 +58,19 @@ axclError axclFinalize();
 axclError axclrtGetVersion(int32_t *major, int32_t *minor, int32_t *patch);
 ```
 
-**使用说明**：
+**Description**:
 
-查询系统版本号，同步接口。
+Query the runtime version information; synchronous call.
 
-**参数**：
+**Parameters**:
 
-- `major [OUT]`：主版本号。
-- `minor[OUT]`：子版本号。
-- `patch [OUT]`：patch版本号。
+- `major [OUT]`: Major version number.
+- `minor[OUT]`: Minor version number.
+- `patch [OUT]`: Patch version number.
 
-**限制**：
+**Restrictions**:
 
-无特别限制。
+No special restrictions.
 
 ---
 (axclrtgetsocname)=
@@ -79,13 +80,13 @@ axclError axclrtGetVersion(int32_t *major, int32_t *minor, int32_t *patch);
 const char *axclrtGetSocName();
 ```
 
-**使用说明**：
+**Description**:
 
-查询当前的芯片SOC字符串名，同步接口。
+Return the SoC name string associated with the active device; synchronous call.
 
-**限制**：
+**Restrictions**:
 
-无特别限制。
+No special restrictions.
 
 ---
 (axclrtsetdevice)=
@@ -95,20 +96,20 @@ const char *axclrtGetSocName();
 axclError axclrtSetDevice(int32_t deviceId);
 ```
 
-**使用说明**：
+**Description**:
 
-指定当前进程或线程中的设备，同时隐式创建默认Context，同步接口。
+Bind the current process or thread to a specific device and implicitly create a default Context; synchronous call.
 
-**参数**：
+**Parameters**:
 
-- `deviceId [IN]`：设备ID。
+- `deviceId [IN]`: Device ID to bind.
 
-**限制**：
+**Restrictions**:
 
-- 本接口内部隐式创建默认Context，该Context由系统在 [`axclrtResetDevice`](#axclrtresetdevice) 自动回收，不能调用 [`axclrtDestroyContext`](#axclrtdestroycontext) 显示销毁。
-- 在同一个进程的多个线程中，如果调用本接口指定的deviceId是同一个，那么隐式创建的Context也是同一个。
-- 和 [`axclrtResetDevice`](#axclrtresetdevice) 成对调用释放本进程使用的设备资源，内部通过引用计数允许多次调用，仅当引用计数为0时释放资源。
-- 多Device场景下，可以在进程中通过本接口或 [`axclrtSetCurrentContext`](#axclrtsetcurrentcontext) 切换Device。
+- This API implicitly creates a default Context that will be automatically reclaimed by the runtime when `axclrtResetDevice` is called; do not call `axclrtDestroyContext` on implicit contexts.
+- If the same device is set by multiple threads in the same process, they will share the same implicit Context.
+- This API must be paired with `axclrtResetDevice`. The runtime tracks references and only releases resources when the reference count reaches zero.
+- To switch devices in multi-device scenarios, use this API or `axclrtSetCurrentContext`.
 
 ---
 (axclrtresetdevice)=
@@ -118,20 +119,20 @@ axclError axclrtSetDevice(int32_t deviceId);
 axclError axclrtResetDevice(int32_t deviceId);
 ```
 
-**使用说明**：
+**Description**:
 
-复位设备，释放设备上的资源，包含隐式或显示创建的Context，同步接口。
+Reset the device and free device resources, including contexts created implicitly or explicitly; synchronous call.
 
-**参数**：
+**Parameters**:
 
-- `deviceId [IN]`：设备ID。
+- `deviceId [IN]`: Device ID.
 
-**限制**：
+**Restrictions**:
 
--  [`axclrtCreateContext`](#axclrtcreatecontext)  显示创建的Context，推荐  [`axclrtDestroyContext`](#axclrtdestroycontext)  显示销毁后再调用本接口释放设备资源。
-- 和 [`axclrtSetDevice`](#axclrtsetdevice) 成对使用，系统将自动回收默认的Context资源。
-- 内部通过引用计数允许多次调用，仅当引用计数为0时释放资源。
-- **应用进程退出要确保`axclrtResetDevice`被调用，特别是异常信号捕获处理后，否则会导致C++抛出terminated abort异常。**
+- For Contexts explicitly created with [`axclrtCreateContext`](#axclrtcreatecontext), it is recommended to call [`axclrtDestroyContext`](#axclrtdestroycontext) to destroy the Context before calling this API to release device resources.
+- Pair with [`axclrtSetDevice`](#axclrtsetdevice); the runtime will automatically reclaim the default Context resource.
+- Multiple calls are allowed; the runtime uses reference counting and will release device resources only when the reference count reaches zero.
+- **Ensure `axclrtResetDevice` is called before the application exits, especially after handling signals; otherwise a C++ "terminated abort" exception may occur.**
 
 ---
 (axclrtgetdevice)=
@@ -141,17 +142,17 @@ axclError axclrtResetDevice(int32_t deviceId);
 axclError axclrtGetDevice(int32_t *deviceId);
 ```
 
-**使用说明**：
+**Description**:
 
-获取当前正在使用的设备ID，同步接口。
+Get the current device ID in use; synchronous call.
 
-**参数**：
+**Parameters**:
 
-- `deviceId [OUT]`：设备ID。
+- `deviceId [OUT]`: Device ID.
 
-**限制**：
+**Restrictions**:
 
-- 如果没有调用  [`axclrtSetDevice`](#axclrtsetdevice)  或者  [`axclrtCreateContext`](#axclrtcreatecontext)  指定设备，本接口返回错误。
+- The API returns an error if no device has been set using [`axclrtSetDevice`](#axclrtsetdevice) or [`axclrtCreateContext`](#axclrtcreatecontext).
 
 ---
 (axclrtgetdevicecount)=
@@ -161,17 +162,17 @@ axclError axclrtGetDevice(int32_t *deviceId);
 axclError axclrtGetDeviceCount(uint32_t *count);
 ```
 
-**使用说明**：
+**Description**:
 
-获取连接的设备总个数，同步接口。
+Get the total number of connected devices; synchronous call.
 
-**参数**：
+**Parameters**:
 
-- `count [OUT]`：设备个数。
+- `count [OUT]`: Number of devices connected.
 
-**限制**：
+**Restrictions**:
 
-无特别限制。
+No special restrictions.
 
 ---
 (axclrtgetdevicelist)=
@@ -181,17 +182,17 @@ axclError axclrtGetDeviceCount(uint32_t *count);
 axclError axclrtGetDeviceList(axclrtDeviceList *deviceList);
 ```
 
-**使用说明**：
+**Description**:
 
-获取全部连接的设备ID，同步接口。
+Get all connected device IDs; synchronous call.
 
-**参数**：
+**Parameters**:
 
-- `deviceList[OUT]`：全部连接的设备ID信息。
+- `deviceList[OUT]`: Structure with information about all connected device IDs.
 
-**限制**：
+**Restrictions**:
 
-无特别限制。
+No special restrictions.
 
 ---
 (axclrtsynchronizedevice)=
@@ -201,13 +202,13 @@ axclError axclrtGetDeviceList(axclrtDeviceList *deviceList);
 axclError axclrtSynchronizeDevice();
 ```
 
-**使用说明**：
+**Description**:
 
-同步执行当前设备的全部任务，，同步接口。
+Synchronize and complete all tasks on the current device; synchronous call.
 
-**限制**：
+**Restrictions**:
 
-至少激活一个设备。
+At least one device must be active.
 
 ---
 (axclrtGetDeviceProperties)=
@@ -217,11 +218,11 @@ axclError axclrtSynchronizeDevice();
 axclError axclrtGetDeviceProperties(int32_t deviceId, axclrtDeviceProperties *properties);
 ```
 
-**使用说明**：
+**Description**:
 
-获取设备UID、CPU利用率、NPU利用率和内存等信息，同步接口。
+Retrieve device UID, CPU utilization, NPU utilization, memory details, and similar properties; synchronous call.
 
-**限制**：
+**Restrictions**:
 
 ---
 (axclrtcreatecontext)=
@@ -231,21 +232,21 @@ axclError axclrtGetDeviceProperties(int32_t deviceId, axclrtDeviceProperties *pr
 axclError axclrtCreateContext(axclrtContext *context, int32_t deviceId);
 ```
 
-**使用说明**：
+**Description**:
 
-在当前线程中显示创建一个Context，同步接口。
+Explicitly create a Context in the current thread; synchronous call.
 
-**参数**：
+**Parameters**:
 
-- `context [OUT]`：创建的Context句柄。
-- `deviceId [IN]`：设备ID。
+- `context [OUT]`: Created Context handle.
+- `deviceId [IN]`: Device ID.
 
-**限制**：
+**Restrictions**:
 
-- 用户创建的子线程若需要调用AXCL API，必须调用此接口显示创建或者  [`axclrtSetCurrentContext`](#axclrtsetcurrentcontext)  绑定一个Context。
-- 若指定设备设备未被激活，本接口内部将首先激活设备。
-- 调用 [`axclrtDestroyContext`](#axclrtdestroycontext) 显示释放Context资源。
-- 允许多个线程共用一个Context（由 [`axclrtSetCurrentContext`](#axclrtsetcurrentcontext)  绑定），但任务的执行取决于系统线程调度的顺序，用户需要自行管理和维护线程间任务的执行同步顺序问题。对于多线程，推荐为每个线程创建专属的Context，增加程序的可维护性。
+- If a worker thread needs to call AXCL APIs, it must create a Context with this API or bind an existing Context using [`axclrtSetCurrentContext`](#axclrtsetcurrentcontext).
+- If the specified device has not been activated, this API will internally activate the device.
+- Call [`axclrtDestroyContext`](#axclrtdestroycontext) to explicitly free Context resources.
+- Multiple threads may share a Context (bound using [`axclrtSetCurrentContext`](#axclrtsetcurrentcontext)), but task execution depends on system thread scheduling; the user must manage synchronization between threads. For multi-threaded programs, we recommend creating a dedicated Context per thread to improve maintainability.
 
 ---
 (axclrtdestroycontext)=
@@ -255,17 +256,17 @@ axclError axclrtCreateContext(axclrtContext *context, int32_t deviceId);
 axclError axclrtDestroyContext(axclrtContext context);
 ```
 
-**使用说明**：
+**Description**:
 
-显示销毁Context，同步接口
+Explicitly destroy a Context; synchronous call.
 
-**参数**：
+- **Parameters**:
 
-- `context [IN]`：创建的Context句柄。
+- `context [IN]`: The Context handle to destroy.
 
-**限制**：
+**Restrictions**:
 
-- 只能销毁 [`axclrtCreateContext`](#axclrtcreatecontext) 创建的Context资源。
+- Only Contexts created by [`axclrtCreateContext`](#axclrtcreatecontext) may be destroyed using this API.
 
 ---
 (axclrtsetcurrentcontext)=
@@ -275,19 +276,19 @@ axclError axclrtDestroyContext(axclrtContext context);
 axclError axclrtSetCurrentContext(axclrtContext context);
 ```
 
-**使用说明**：
+**Description**:
 
-绑定线程运行的Context， 同步接口。
+Bind a Context to the current thread; synchronous call.
 
-**参数**：
+**Parameters**:
 
-- `context [IN]`：Context句柄。
+- `context [IN]`: Context handle.
 
-**限制**：
+**Restrictions**:
 
-- 如果多次调用本接口绑定线程，以最后一次的Context为准。
-- 若绑定Context对应的设备Device已被 [`axclrtResetDevice`](#axclrtresetdevice) 复位，则不能将该Context设置为线程的Context，否则会导致异常。
-- 推荐在某一线程中创建的Context，在该线程中使用。若在线程A中调用  [`axclrtCreateContext`](#axclrtcreatecontext)  接口创建Context，在线程B中使用该Context，则需由用户自行保证两个线程中同一个Context下任务执行的顺序。
+- If the thread binds Context multiple times with this API, the last set Context will be used.
+- If the device associated with the bound Context has been reset by [`axclrtResetDevice`](#axclrtresetdevice), do not set that Context as the thread's Context; attempting to do so may cause an exception.
+- It is recommended that a Context is created and used on the same thread. If a Context is created in thread A and used in thread B, the application must ensure proper execution ordering of tasks that use that Context.
 
 ---
 (axclrtgetcurrentcontext)=
@@ -297,18 +298,18 @@ axclError axclrtSetCurrentContext(axclrtContext context);
 axclError axclrtGetCurrentContext(axclrtContext *context);
 ```
 
-**使用说明**：
+**Description**:
 
-获取线程绑定的Context句柄，同步接口。
+Retrieve the Context handle bound to the current thread; synchronous call.
 
-**参数**：
+**Parameters**:
 
-- `context [OUT]`：当前的上下文句柄。
+- `context [OUT]`: Current context handle.
 
-**限制**：
+**Restrictions**:
 
-- 调用线程需要执行 [`axclrtSetCurrentContext`](#axclrtsetcurrentcontext) 绑定或者 [`axclrtCreateContext`](#axclrtcreatecontext) 创建Context后才能获取。
-- 如果多次调用  [`axclrtSetCurrentContext`](#axclrtsetcurrentcontext) ，那么获取的是最后一次设置的Context。
+- The calling thread must have bound a Context using [`axclrtSetCurrentContext`](#axclrtsetcurrentcontext) or created one with [`axclrtCreateContext`](#axclrtcreatecontext) in order to retrieve it.
+- If the thread binds Context multiple times with [`axclrtSetCurrentContext`](#axclrtsetcurrentcontext), the last bound Context will be returned.
 
 
 
@@ -321,22 +322,22 @@ axclError axclrtGetCurrentContext(axclrtContext *context);
 axclError axclrtMalloc(void **devPtr, size_t size, axclrtMemMallocPolicy policy);
 ```
 
-**使用说明**：
+**Description**:
 
-在设备侧分配非CACHED物理内存，通过**devPtr*返回已分配的内存的指针，同步接口。
+Allocate non-cached physical memory on the device; returns the allocated pointer via `devPtr`; synchronous call.
 
-**参数**：
+**Parameters**:
 
-- `devPtr [OUT]`：返回已分配的设备侧物理内存指针。
-- `size [IN]`：指定分配的内存大小，单位字节。
-- `policy[IN]`：指定分配的内存规则，目前没有使用。
+- `devPtr [OUT]`: Returns the pointer to allocated device physical memory.
+- `size [IN]`: Size of the allocation in bytes.
+- `policy[IN]`: Memory allocation policy; currently unused.
 
-**限制**：
+**Restrictions**:
 
-- 本接口从设备侧CMM内存池分配连续物理内存。
-- 本接口申请非CACHED内存，不用处理一致性。
-- 调用[`axclrtFree`](#axclrtfree) 释放内存。
-- 频繁申请释放内存会损耗性能，建议用户做好预分配或二次管理，避免频繁申请和释放。
+- This API allocates contiguous physical memory from the device's CMM pool.
+- Allocated memory is non-cached; cache coherence handling is not required.
+- Free the memory via [`axclrtFree`](#axclrtfree).
+- Frequent allocations and deallocations may degrade performance. Consider preallocation or reuse strategies.
 
 ---
 (axclrtmalloccached)=
@@ -346,22 +347,22 @@ axclError axclrtMalloc(void **devPtr, size_t size, axclrtMemMallocPolicy policy)
 axclError axclrtMallocCached(void **devPtr, size_t size, axclrtMemMallocPolicy policy);
 ```
 
-**使用说明**：
+**Description**:
 
-在设备侧分配CACHED物理内存，通过**devPtr*返回已分配的内存的指针，同步接口。
+Allocate cached physical memory on the device; return the allocated pointer via `devPtr`; synchronous call.
 
-**参数**：
+**Parameters**:
 
-- `devPtr [OUT]`：返回已分配的设备侧物理内存指针。
-- `size [IN]`：指定分配的内存大小，单位字节。
-- `policy[IN]`：指定分配的内存规则，目前没有使用。
+- `devPtr [OUT]`: Returns the pointer to the allocated device-side physical memory.
+- `size [IN]`: Size of the allocation in bytes.
+- `policy [IN]`: Memory allocation policy; currently unused.
 
-**限制**：
+**Restrictions**:
 
-- 本接口从设备侧CMM内存池分配连续物理内存。
-- 本接口申请CACHED内存，需要用户处理一致性。
-- 调用[`axclrtFree`](#axclrtfree) 释放内存。
-- 频繁申请释放内存会损耗性能，建议用户做好预分配或二次管理，避免频繁申请和释放。
+- This API allocates contiguous physical memory from the device's CMM pool.
+- Allocated memory is cached; the application must handle cache coherence.
+- Free the memory via [`axclrtFree`](#axclrtfree).
+- Frequent allocations and deallocations may degrade performance; prefer preallocation or pooling.
 
 ---
 (axclrtfree)=
@@ -371,17 +372,17 @@ axclError axclrtMallocCached(void **devPtr, size_t size, axclrtMemMallocPolicy p
 axclError axclrtFree(void *devPtr);
 ```
 
-**使用说明**：
+**Description**:
 
-释放设备侧分配的内存，同步接口。
+Free device-side allocated memory; synchronous call.
 
-**参数**：
+**Parameters**:
 
-- `devPtr [IN]`：待释放的设备内存。
+- `devPtr [IN]`: Device memory to be freed.
 
-**限制**：
+**Restrictions**：
 
-- 只能释放 [`axclrtMalloc`](#axclrtmalloc)  或  [`axclrtMallocCached`](#axclrtmalloccached)  申请的设备侧内存。
+- Only device-side memory allocated by [`axclrtMalloc`](#axclrtmalloc) or [`axclrtMallocCached`](#axclrtmalloccached) may be freed.
 
 ---
 (axclrtmemflush)=
@@ -391,18 +392,18 @@ axclError axclrtFree(void *devPtr);
 axclError axclrtMemFlush(void *devPtr, size_t size);
 ```
 
-**使用说明**：
+**Description**:
 
-将cache中的数据刷新到DDR中，并将cache中的内容设置成无效，同步接口。
+Flush cached data to DDR and mark cache lines as invalid; synchronous call.
 
-**参数**：
+**Parameters**:
 
-- `devPtr [IN]`：待flush的DDR内存起始地址指针。
-- `size [IN]`：待flush的DDR内存大小，单位字节。
+- `devPtr [IN]`: Pointer to the start of the DDR memory region to flush.
+- `size [IN]`: Size in bytes to flush.
 
-**限制**：
+**Restrictions**：
 
-无特别限制
+No special restrictions.
 
 ---
 (axclrtmeminvalidate)=
@@ -412,18 +413,18 @@ axclError axclrtMemFlush(void *devPtr, size_t size);
 axclError axclrtMemInvalidate(void *devPtr, size_t size);
 ```
 
-**使用说明**：
+**Description**:
 
-将cache中的数据设置成无效，同步接口。
+Invalidate cached data for the specified DDR memory region; synchronous call.
 
-**参数**：
+**Parameters**:
 
-- `devPtr [IN]`：待cache数据设置为无效的DDR内存起始地址指针。
-- `size [IN]`：DDR内存大小，单位字节。
+- `devPtr [IN]`: Pointer to the start of the DDR memory region to invalidate.
+- `size [IN]`: Size in bytes to invalidate.
 
-**限制**：
+**Restrictions**：
 
-- 无特别限制
+- No special restrictions.
 
 ---
 (axclrtmallochost)=
@@ -433,20 +434,20 @@ axclError axclrtMemInvalidate(void *devPtr, size_t size);
 axclError axclrtMallocHost(void **hostPtr, size_t size);
 ```
 
-**使用说明**：
+**Description**:
 
-在HOST申请虚拟内存，同步接口。
+Allocate virtual memory on the host; synchronous call.
 
-**参数**：
+**Parameters**:
 
-- `hostPtr [OUT]`：已分配内存首地址。
-- `size [IN]`：申请的内存大小，单位字节。
+- `hostPtr [OUT]`: Address of the allocated host memory.
+- `size [IN]`: Size of the allocation in bytes.
 
-**限制**：
+**Restrictions**:
 
-- 使用 [`axclrtMallocHost`](#axclrtmallochost) 接口申请的内存，需要通过 [`axclrtFreeHost`](#axclrtfreehost) 接口释放内存。
-- 频繁申请释放内存会损耗性能，建议用户做好预分配或二次管理，避免频繁申请和释放。
-- 在HOST申请内存也可以直接调用malloc接口，但推荐调用 [`axclrtMallocHost`](#axclrtmallochost) 。
+- Memory allocated with [`axclrtMallocHost`](#axclrtmallochost) must be freed with [`axclrtFreeHost`](#axclrtfreehost).
+- Frequent allocate/free operations may degrade performance; consider pooling or preallocation.
+- You can also use standard `malloc` on host memory, but `axclrtMallocHost` is recommended.
 
 ---
 (axclrtfreehost)=
@@ -456,17 +457,17 @@ axclError axclrtMallocHost(void **hostPtr, size_t size);
 axclError axclrtFreeHost(void *hostPtr);
 ```
 
-**使用说明**：
+**Description**:
 
-释放  [`axclrtMallocHost`](#axclrtmallochost)  申请的内存，同步接口。
+Free memory allocated with [`axclrtMallocHost`](#axclrtmallochost); synchronous call.
 
-**参数**：
+**Parameters**:
 
-- `hostPtr [IN]`：待释放的内存首地址。
+- `hostPtr [IN]`: Address of the host memory to free.
 
-**限制**：
+**Restrictions**:
 
-- 只能释放 [`axclrtMallocHost`](#axclrtmallochost) 申请的HOST内存。
+- Only host memory allocated with `axclrtMallocHost` should be freed with `axclrtFreeHost`.
 
 ---
 (axclrtmemset)=
@@ -476,21 +477,21 @@ axclError axclrtFreeHost(void *hostPtr);
 axclError axclrtMemset(void *devPtr, uint8_t value, size_t count);
 ```
 
-**使用说明**：
+**Description**:
 
-只能初始化[`axclrtMalloc`](#axclrtmalloc)  或  [`axclrtMallocCached`](#axclrtmalloccached)  申请的设备侧内存，同步接口。
+Initialize device memory allocated by `axclrtMalloc` or `axclrtMallocCached`; synchronous call.
 
-**参数**：
+**Parameters**:
 
-- `devPtr[IN]`：待初始化的设备侧内存首地址。
-- `value [IN]`：设置的值。
-- `count [IN]`：待初始化的内存的长度，单位字节。
+- `devPtr [IN]`: Pointer to the device memory to initialize.
+- `value [IN]`: Value to set.
+- `count [IN]`: Number of bytes to initialize.
 
-**限制**：
+**Restrictions**:
 
-- 只能初始化[`axclrtMalloc`](#axclrtmalloc)  或  [`axclrtMallocCached`](#axclrtmalloccached)  申请的设备侧内存。
-- [`axclrtMallocCached`](#axclrtmalloccached)  申请的设备侧内存初始化需要调用 [`axclrtMemInvalidate`](#axclrtmeminvalidate)  保持一致性。
--  [`axclrtMallocHost`](#axclrtmallochost) 申请的HOST内存请调用memset函数初始化。
+- Only device memory allocated by `axclrtMalloc` or `axclrtMallocCached` can be initialized.
+- For memory allocated with `axclrtMallocCached`, call `axclrtMemInvalidate` to maintain coherence if necessary.
+- Host memory allocated by `axclrtMallocHost` should be initialized with standard `memset`.
 
 ---
 (axclrtmemcpy)=
@@ -500,27 +501,25 @@ axclError axclrtMemset(void *devPtr, uint8_t value, size_t count);
 axclError axclrtMemcpy(void *dstPtr, const void *srcPtr, size_t count, axclrtMemcpyKind kind);
 ```
 
-**使用说明**：
+**Description**:
 
-实现HOST内、HOST与DEVICE之间、DEVICE内的同步内存复制，同步接口。
+Perform synchronous memory copy operations for host-host, host-device, and device-device transfers.
 
-**参数**：
-
-- `devPtr [IN]`：目的内存地址指针。
-- `srcPtr [IN]`：源内存地址指针。
-- `count [IN]`：内存复制的长度，单位字节。
-- `kind [IN]`：内存复制的类型。
-  - [`AXCL_MEMCPY_HOST_TO_HOST`]：HOST内的内存复制。
-  - [`AXCL_MEMCPY_HOST_TO_DEVICE`]： HOST 虚拟内存到DEVICE的内存复制。
-  - [`AXCL_MEMCPY_DEVICE_TO_HOST`]： DEVICE到HOST 虚拟内存的内存复制。
-  - [`AXCL_MEMCPY_DEVICE_TO_DEVICE`]： DEVICE内的内存复制。
-  - [`AXCL_MEMCPY_HOST_PHY_TO_DEVICE`]： HOST 连续物理内存到DEVICE的内存复制。
-  - [`AXCL_MEMCPY_DEVICE_TO_HOST_PHY`]：  DEVICE到HOST 连续物理内存的内存复制。
+- `dstPtr [IN]`: Destination memory pointer.
+-- `srcPtr [IN]`: Source memory pointer.
+-- `count [IN]`: Number of bytes to copy.
+-- `kind [IN]`: Type of copy.
+  - [`AXCL_MEMCPY_HOST_TO_HOST`]: Host-to-host copy.
+  - [`AXCL_MEMCPY_HOST_TO_DEVICE`]: Host (virtual) to device copy.
+  - [`AXCL_MEMCPY_DEVICE_TO_HOST`]: Device to host (virtual) copy.
+  - [`AXCL_MEMCPY_DEVICE_TO_DEVICE`]: Device-to-device copy.
+  - [`AXCL_MEMCPY_HOST_PHY_TO_DEVICE`]: Host physically-contiguous memory to device copy.
+  - [`AXCL_MEMCPY_DEVICE_TO_HOST_PHY`]: Device to host physically-contiguous memory copy.
 
 
-**限制**：
+**Restrictions**：
 
-- 复制的源和目标内存需要满足`kind`的要求。
+- The source and destination memory for copying must meet the requirements of `kind`.
 
 ---
 (axclrtmemcmp)=
@@ -530,19 +529,19 @@ axclError axclrtMemcpy(void *dstPtr, const void *srcPtr, size_t count, axclrtMem
 axclError axclrtMemcmp(const void *devPtr1, const void *devPtr2, size_t count);
 ```
 
-**使用说明**：
+**Description**:
 
-实现DEVICE内的内存比较，同步接口。
+Performs device-side memory comparison; synchronous call.
 
-**参数**：
+**Parameters**:
 
-- `devPtr1 [IN]`：设备侧地址1指针。
-- `devPtr2 [IN]`：设备侧地址2指针。
-- `count [IN]`：比较长度，单位字节。
+- `devPtr1 [IN]`: Device-side pointer 1.
+- `devPtr2 [IN]`: Device-side pointer 2.
+- `count [IN]`: Number of bytes to compare.
 
-**限制**：
+**Restrictions**：
 
-- 只支持设备侧内存的比较，且仅内存比较相同时返回AXCL_SUCC(0)。
+- Only supports device-side memory comparisons; AXCL_SUCC(0) is returned only if the contents are equal.
 
 
 
@@ -553,17 +552,17 @@ axclError axclrtMemcmp(const void *devPtr1, const void *devPtr2, size_t count);
 ```c
 axclError axclrtEngineInit(axclrtEngineVNpuKind npuKind);
 ```
-**使用说明**：
+**Description**:
 
-此函数用于初始化 `Runtime Engine`。用户需要在使用 `Runtime Engine` 之前调用此函数。
+This function initializes the `Runtime Engine`. Users must call this before using any `Runtime Engine` features.
 
-**参数**：
+**Parameters**:
 
-- `npuKind [IN]`：指定要初始化的 `VNPU` 类型。
+- `npuKind [IN]`: Specify the VNPU type to initialize.
 
-**限制**：
+**Restrictions**：
 
-用户在使用完 `Runtime Engine` 后，需要调用 [`axclrtEngineFinalize`](#axclrtenginefinalize) 来完成 `Runtime Engine` 的清理工作。
+After using the `Runtime Engine`, users should call [`axclrtEngineFinalize`](#axclrtenginefinalize) to clean up and release `Runtime Engine` resources.
 
 ---
 
@@ -572,16 +571,16 @@ axclError axclrtEngineInit(axclrtEngineVNpuKind npuKind);
 ```c
 axclError axclrtEngineGetVNpuKind(axclrtEngineVNpuKind *npuKind);
 ```
-**使用说明**：
+**Description**:
 
-此函数用于获取 `Runtime Engine` 初始化的 `VNPU` 类型。
+This function returns the VNPU type used to initialize the `Runtime Engine`.
 
-**参数**：
-- `npuKind [OUT]`：返回 `VNPU` 类型。
+**Parameters**:
+- `npuKind [OUT]`: VNPU type returned.
 
-**限制**：
+**Restrictions**：
 
-用户必须在调用此函数之前调用 [`axclrtEngineInit`](#axclrtengineinit) 来初始化 `Runtime Engine`。
+Users must call [`axclrtEngineInit`](#axclrtengineinit) to initialize the `Runtime Engine` before calling this function.
 
 ---
 
@@ -590,13 +589,13 @@ axclError axclrtEngineGetVNpuKind(axclrtEngineVNpuKind *npuKind);
 ```c
 axclError axclrtEngineFinalize();
 ```
-**使用说明**：
+**Description**:
 
-此函数用于完成 `Runtime Engine` 的清理工作。用户在完成所有操作后需要调用此函数。
+This function finalizes and cleans up the `Runtime Engine`. Users should call it after all Engine operations are finished.
 
-**限制**：
+**Restrictions**：
 
-用户必须在调用此函数之前调用 [`axclrtEngineInit`](#axclrtengineinit) 来初始化 `Runtime Engine`。
+Users must call [`axclrtEngineInit`](#axclrtengineinit) before invoking this function.
 
 ---
 
@@ -605,17 +604,17 @@ axclError axclrtEngineFinalize();
 ```c
 axclError axclrtEngineLoadFromFile(const char *modelPath, uint64_t *modelId);
 ```
-**使用说明**：
+**Description**:
 
-此函数从文件加载模型数据，创建模型 `ID`。
+This function loads model data from a file and creates a model `ID`.
 
-**参数**：
-- `modelPath [IN]`：离线模型文件的存储路径。
-- `modelId [OUT]`：加载模型后生成的模型 `ID` ，用于后续操作的标识。
+**Parameters**:
+- `modelPath [IN]`: Path to the offline model file to load.
+- `modelId [OUT]`: The generated model ID used for subsequent operations.
 
-**限制**：
+**Restrictions**:
 
-用户必须在调用此函数之前调用 [`axclrtEngineInit`](#axclrtengineinit) 来初始化 `Runtime Engine`。
+Users must call [`axclrtEngineInit`](#axclrtengineinit) before invoking this function.
 
 ---
 
@@ -624,18 +623,18 @@ axclError axclrtEngineLoadFromFile(const char *modelPath, uint64_t *modelId);
 ```c
 axclError axclrtEngineLoadFromMem(const void *model, uint64_t modelSize, uint64_t *modelId);
 ```
-**使用说明**：
+**Description**：
 
-此函数从内存加载离线模型数据，并由系统内部管理模型运行的内存。
+This function loads an offline model from memory and lets the system manage runtime memory for the model.
 
-**参数**：
-- `model [IN]`：存储在内存中的模型数据。
-- `modelSize [IN]`：模型数据的大小。
-- `modelId [OUT]`：加载模型后生成的模型 `ID` ，用于后续操作的标识。
+**Parameters**:
+- `model [IN]`: Model data stored in memory.
+- `modelSize [IN]`: Size of the model data.
+- `modelId [OUT]`: The generated model ID used for subsequent operations.
 
-**限制**：
+**Restrictions**:
 
-模型内存必须是设备内存，用户需要自行管理和释放。
+Model memory must be device memory; the user is responsible for allocation and freeing.
 
 ---
 
@@ -644,16 +643,16 @@ axclError axclrtEngineLoadFromMem(const void *model, uint64_t modelSize, uint64_
 ```c
 axclError axclrtEngineUnload(uint64_t modelId);
 ```
-**使用说明**：
+**Description**：
 
-此函数用于卸载指定模型 `ID`  的模型。
+This function unloads the model identified by the specified model `ID`.
 
-**参数**：
-- `modelId [IN]`：要卸载的模型 `ID` 。
+**Parameters**:
+- `modelId [IN]`: Model ID to unload.
 
-**限制**：
+**Restrictions**：
 
-无特别限制。
+No special restrictions.
 
 ---
 (axclrtenginegetmodelcompilerversion)=
@@ -661,16 +660,16 @@ axclError axclrtEngineUnload(uint64_t modelId);
 ```c
 const char* axclrtEngineGetModelCompilerVersion(uint64_t modelId);
 ```
-**使用说明**：
+**Description**：
 
-此函数用于获取模型构建工具链的版本。
+This function returns the version string of the model compiler toolchain.
 
-**参数**：
-- `modelId [IN]`：模型 `ID` 。
+**Parameters**:
+- `modelId [IN]`: Model ID.
 
-**限制**：
+**Restrictions**：
 
-无特别限制。
+No special restrictions.
 
 ---
 (axclrtenginesetaffinity)=
@@ -678,17 +677,17 @@ const char* axclrtEngineGetModelCompilerVersion(uint64_t modelId);
 ```c
 axclError axclrtEngineSetAffinity(uint64_t modelId, axclrtEngineSet set);
 ```
-**使用说明**：
+**Description**：
 
-此函数用于设置模型的 NPU 亲和性。
+This function sets the model's NPU affinity.
 
-**参数**：
-- `modelId [IN]`：模型 `ID` 。
-- `set [OUT]`：设置的亲和性集。
+**Parameters**:
+-- `modelId [IN]`: Model ID.
+-- `set [IN]`: Affinity bitset to apply.
 
-**限制**：
+**Restrictions**：
 
-不允许为零，设置的掩码位不能超出亲和性范围。
+The affinity set must not be zero; mask bits cannot exceed the available NPU affinity range.
 
 ---
 (axclrtenginegetaffinity)=
@@ -696,17 +695,17 @@ axclError axclrtEngineSetAffinity(uint64_t modelId, axclrtEngineSet set);
 ```c
 axclError axclrtEngineGetAffinity(uint64_t modelId, axclrtEngineSet *set);
 ```
-**使用说明**：
+**Description**：
 
-此函数用于获取模型的 NPU 亲和性。
+This function obtains the model's NPU affinity.
 
-**参数**：
-- `modelId [IN]`：模型 `ID` 。
-- `set [OUT]`：返回的亲和性集。
+**Parameters**:
+-- `modelId [IN]`: Model ID.
+-- `set [OUT]`: Returned affinity bitset.
 
-**限制**：
+**Restrictions**：
 
-无特别限制。
+No special restrictions.
 
 ---
 (axclrtenginegetusage)=
@@ -714,18 +713,18 @@ axclError axclrtEngineGetAffinity(uint64_t modelId, axclrtEngineSet *set);
 ```c
 axclError axclrtEngineGetUsage(const char *modelPath, int64_t *sysSize, int64_t *cmmSize);
 ```
-**使用说明**：
+**Description**：
 
-此函数根据模型文件获取模型执行所需的系统内存大小和 CMM 内存大小。
+This function returns the required system memory size and CMM memory size for executing the model from a file.
 
-**参数**：
-- `modelPath [IN]`：用于获取内存信息的模型路径。
-- `sysSize [OUT]`：执行模型所需的工作系统内存大小。
-- `cmmSize [OUT]`：执行模型所需的 CMM 内存大小。
+**Parameters**:
+- `modelPath [IN]`: Path to the model file used to fetch memory usage information.
+- `sysSize [OUT]`: System memory required for runtime execution.
+- `cmmSize [OUT]`: CMM memory required for runtime execution.
 
-**限制**：
+**Restrictions**：
 
-无特别限制。
+No special restrictions.
 
 ---
 (axclrtenginegetusagefrommem)=
@@ -733,19 +732,19 @@ axclError axclrtEngineGetUsage(const char *modelPath, int64_t *sysSize, int64_t 
 ```c
 axclError axclrtEngineGetUsageFromMem(const void *model, uint64_t modelSize, int64_t *sysSize, int64_t *cmmSize);
 ```
-**使用说明**：
+**Description**：
 
-此函数根据模型数据在内存中获取模型执行所需的系统内存大小和 CMM 内存大小。
+This function returns the required system memory size and CMM memory size for executing the model represented in memory.
 
-**参数**：
-- `model [IN]`：用户管理的模型内存。
-- `modelSize [IN]`：模型数据大小。
-- `sysSize [OUT]`：执行模型所需的工作系统内存大小。
-- `cmmSize [OUT]`：执行模型所需的 CMM 内存大小。
+**Parameters**:
+- `model [IN]`: The model memory managed by the user.
+- `modelSize [IN]`: Model data size.
+- `sysSize [OUT]`: Size of the working system memory required to execute the model.
+- `cmmSize [OUT]`: Size of the CMM memory required to execute the model.
 
-**限制**：
+**Restrictions**:
 
-模型内存必须是设备内存，用户需要自行管理和释放。
+Model memory must be device memory; the user is responsible for allocation and freeing.
 
 ---
 (axclrtenginegetusagefrommodelid)=
@@ -753,18 +752,18 @@ axclError axclrtEngineGetUsageFromMem(const void *model, uint64_t modelSize, int
 ```c
 axclError axclrtEngineGetUsageFromModelId(uint64_t modelId, int64_t *sysSize, int64_t *cmmSize);
 ```
-**使用说明**：
+**Description**：
 
-此函数根据模型 `ID`  获取模型执行所需的系统内存大小和 CMM 内存大小。
+This function returns the required system memory size and CMM memory size for executing the model identified by the model `ID`.
 
-**参数**：
-- `modelId [IN]`：模型 `ID` 。
-- `sysSize [OUT]`：执行模型所需的工作系统内存大小。
-- `cmmSize [OUT]`：执行模型所需的 CMM 内存大小。
+**Parameters**:
+- `modelId [IN]`: Model ID.
+- `sysSize [OUT]`: Size of the working system memory required to execute the model.
+- `cmmSize [OUT]`: Size of the CMM memory required to execute the model.
 
-**限制**：
+**Restrictions**：
 
-无特别限制。
+No special restrictions.
 
 ---
 (axclrtenginegetmodeltype)=
@@ -772,17 +771,17 @@ axclError axclrtEngineGetUsageFromModelId(uint64_t modelId, int64_t *sysSize, in
 ```c
 axclError axclrtEngineGetModelType(const char *modelPath, axclrtEngineModelKind *modelType);
 ```
-**使用说明**：
+**Description**：
 
-此函数根据模型文件获取模型类型。
+This function retrieves the model type based on the model file.
 
-**参数**：
-- `modelPath [IN]`：用于获取模型类型的模型路径。
-- `modelType [OUT]`：返回的模型类型。
+**Parameters**：
+- `modelPath [IN]`: Path to the model file used to get the model type.
+- `modelType [OUT]`: Returned model type.
 
-**限制**：
+**Restrictions**：
 
-无特别限制。
+No special restrictions.
 
 ---
 (axclrtenginegetmodeltypefrommem)=
@@ -790,18 +789,18 @@ axclError axclrtEngineGetModelType(const char *modelPath, axclrtEngineModelKind 
 ```c
 axclError axclrtEngineGetModelTypeFromMem(const void *model, uint64_t modelSize, axclrtEngineModelKind *modelType);
 ```
-**使用说明**：
+**Description**：
 
-此函数根据内存中的模型数据获取模型类型。
+This function retrieves the model type based on model data in memory.
 
-**参数**：
-- `model [IN]`：用户管理的模型内存。
-- `modelSize [IN]`：模型数据大小。
-- `modelType [OUT]`：返回的模型类型。
+**Parameters**：
+- `model [IN]`: User-managed model memory.
+- `modelSize [IN]`: Model data size.
+- `modelType [OUT]`: Returned model type.
 
-**限制**：
+**Restrictions**:
 
-模型内存必须是设备内存，用户需要自行管理和释放。
+Model memory must be device memory; the user is responsible for allocation and freeing.
 
 ---
 (axclrtenginegetmodeltypefrommodelid)=
@@ -809,17 +808,17 @@ axclError axclrtEngineGetModelTypeFromMem(const void *model, uint64_t modelSize,
 ```c
 axclError axclrtEngineGetModelTypeFromModelId(uint64_t modelId, axclrtEngineModelKind *modelType);
 ```
-**使用说明**：
+**Description**：
 
-此函数根据模型 `ID`  获取模型类型。
+This function retrieves the model type for the specified model `ID`.
 
-**参数**：
-- `modelId [IN]`：模型 `ID` 。
-- `modelType [OUT]`：返回的模型类型。
+**Parameters**：
+- `modelId [IN]`: Model ID.
+- `modelType [OUT]`: Returned model type.
 
-**限制**：
+**Restrictions**：
 
-无特别限制。
+No special restrictions.
 
 ---
 (axclrtenginegetioinfo)=
@@ -827,17 +826,17 @@ axclError axclrtEngineGetModelTypeFromModelId(uint64_t modelId, axclrtEngineMode
 ```c
 axclError axclrtEngineGetIOInfo(uint64_t modelId, axclrtEngineIOInfo *ioInfo);
 ```
-**使用说明**：
+**Description**：
 
-此函数根据模型 `ID`  获取模型的 IO 信息。
+This function obtains the IO information for the given model `ID`.
 
-**参数**：
-- `modelId [IN]`：模型 `ID` 。
-- `ioInfo [OUT]`：返回的 axclrtEngineIOInfo 指针。
+**Parameters**：
+- `modelId [IN]`: Model ID.
+- `ioInfo [OUT]`: Pointer to returned `axclrtEngineIOInfo`.
 
-**限制**：
+**Restrictions**：
 
-用户在模型 `ID` 销毁前应调用 `axclrtEngineDestroyIOInfo` 来释放 `axclrtEngineIOInfo`。
+The user should call `axclrtEngineDestroyIOInfo` to free the `axclrtEngineIOInfo` before the model ID is destroyed.
 
 ---
 (axclrtenginedestroyioinfo)=
@@ -845,16 +844,16 @@ axclError axclrtEngineGetIOInfo(uint64_t modelId, axclrtEngineIOInfo *ioInfo);
 ```c
 axclError axclrtEngineDestroyIOInfo(axclrtEngineIOInfo ioInfo);
 ```
-**使用说明**：
+**Description**：
 
-此函数用于销毁类型为 `axclrtEngineIOInfo` 的数据。
+This function destroys an `axclrtEngineIOInfo` object.
 
-**参数**：
-- `ioInfo [IN]`：axclrtEngineIOInfo 指针。
+**Parameters**：
+- `ioInfo [IN]`: Pointer to `axclrtEngineIOInfo`.
 
-**限制**：
+**Restrictions**：
 
-无特别限制。
+No special restrictions.
 
 ---
 (axclrtenginegetshapegroupscount)=
@@ -862,17 +861,17 @@ axclError axclrtEngineDestroyIOInfo(axclrtEngineIOInfo ioInfo);
 ```c
 axclError axclrtEngineGetShapeGroupsCount(axclrtEngineIOInfo ioInfo, int32_t *count);
 ```
-**使用说明**：
+**Description**：
 
-此函数用于获取 IO 形状组的数量。
+This function returns the number of IO shape groups available.
 
-**参数**：
-- `ioInfo [IN]`：axclrtEngineIOInfo 指针。
-- `count [OUT]`：形状组的数量。
+**Parameters**：
+- `ioInfo [IN]`: Pointer to `axclrtEngineIOInfo`.
+- `count [OUT]`: Number of shape groups.
 
-**限制**：
+**Restrictions**：
 
-Pulsar2 工具链可以在模型转换时指定多个形状。普通模型只有一个形状，因此对于正常转换的模型，调用此函数没有必要。
+The Pulsar2 toolchain can specify multiple shapes during model conversion. A standard model typically has only one shape; therefore, for normally converted models, calling this function is unnecessary.
 
 ---
 (axclrtenginegetnuminputs)=
@@ -880,16 +879,16 @@ Pulsar2 工具链可以在模型转换时指定多个形状。普通模型只有
 ```c
 uint32_t axclrtEngineGetNumInputs(axclrtEngineIOInfo ioInfo);
 ```
-**使用说明**：
+**Description**：
 
-此函数根据 `axclrtEngineIOInfo` 数据获取模型的输入数量。
+This function returns the number of inputs according to the `axclrtEngineIOInfo` data.
 
-**参数**：
-- `ioInfo [IN]`：axclrtEngineIOInfo 指针。
+**Parameters**：
+- `ioInfo [IN]`: Pointer to `axclrtEngineIOInfo`.
 
-**限制**：
+**Restrictions**：
 
-无特别限制。
+No special restrictions.
 
 ---
 (axclrtenginegetnumoutputs)=
@@ -897,16 +896,16 @@ uint32_t axclrtEngineGetNumInputs(axclrtEngineIOInfo ioInfo);
 ```c
 uint32_t axclrtEngineGetNumOutputs(axclrtEngineIOInfo ioInfo);
 ```
-**使用说明**：
+**Description**：
 
-此函数根据 `axclrtEngineIOInfo` 数据获取模型的输出数量。
+This function returns the number of outputs according to the `axclrtEngineIOInfo` data.
 
-**参数**：
-- `ioInfo [IN]`：axclrtEngineIOInfo 指针。
+**Parameters**：
+- `ioInfo [IN]`: Pointer to `axclrtEngineIOInfo`.
 
-**限制**：
+**Restrictions**：
 
-无特别限制。
+No special restrictions.
 
 ---
 (axclrtenginegetinputsizebyindex)=
@@ -914,18 +913,18 @@ uint32_t axclrtEngineGetNumOutputs(axclrtEngineIOInfo ioInfo);
 ```c
 uint64_t axclrtEngineGetInputSizeByIndex(axclrtEngineIOInfo ioInfo, uint32_t group, uint32_t index);
 ```
-**使用说明**：
+**Description**：
 
-此函数根据 `axclrtEngineIOInfo` 数据获取指定输入的大小。
+This function returns the size of a specified input from `axclrtEngineIOInfo` data.
 
-**参数**：
-- `ioInfo [IN]`：axclrtEngineIOInfo 指针。
-- `group [IN]`：输入形状组索引。
-- `index [IN]`：要获取的输入大小的索引值，从 0 开始。
+**Parameters**：
+- `ioInfo [IN]`: Pointer to `axclrtEngineIOInfo`.
+- `group [IN]`: Input shape group index.
+- `index [IN]`: Index for the input size to retrieve (0-based).
 
-**限制**：
+**Restrictions**：
 
-无特别限制。
+No special restrictions.
 
 ---
 (axclrtenginegetoutputsizebyindex)=
@@ -933,18 +932,18 @@ uint64_t axclrtEngineGetInputSizeByIndex(axclrtEngineIOInfo ioInfo, uint32_t gro
 ```c
 uint64_t axclrtEngineGetOutputSizeByIndex(axclrtEngineIOInfo ioInfo, uint32_t group, uint32_t index);
 ```
-**使用说明**：
+**Description**：
 
-此函数根据 `axclrtEngineIOInfo` 数据获取指定输出的大小。
+This function returns the size of a specified output from `axclrtEngineIOInfo` data.
 
-**参数**：
-- `ioInfo [IN]`：axclrtEngineIOInfo 指针。
-- `group [IN]`：输出形状组索引。
-- `index [IN]`：要获取的输出大小的索引值，从 0 开始。
+**Parameters**：
+- `ioInfo [IN]`: Pointer to `axclrtEngineIOInfo`.
+- `group [IN]`: Output shape group index.
+- `index [IN]`: Index for the output size to retrieve (0-based).
 
-**限制**：
+**Restrictions**：
 
-无特别限制。
+No special restrictions.
 
 ---
 (axclrtenginegetinputnamebyindex)=
@@ -952,17 +951,17 @@ uint64_t axclrtEngineGetOutputSizeByIndex(axclrtEngineIOInfo ioInfo, uint32_t gr
 ```c
 const char *axclrtEngineGetInputNameByIndex(axclrtEngineIOInfo ioInfo, uint32_t index);
 ```
-**使用说明**：
+**Description**：
 
-此函数获取指定输入的名称。
+This function retrieves the name of the specified input.
 
-**参数**：
-- `ioInfo [IN]`：axclrtEngineIOInfo 指针。
-- `index [IN]`：输入 IO 索引。
+**Parameters**：
+- `ioInfo [IN]`: Pointer to `axclrtEngineIOInfo`.
+- `index [IN]`: Input IO index.
 
-**限制**：
+**Restrictions**：
 
-返回的输入张量名称与 `ioInfo` 的生命周期相同。
+Returned input tensor names share the same lifecycle as the `ioInfo` object.
 
 ---
 (axclrtenginegetoutputnamebyindex)=
@@ -970,17 +969,17 @@ const char *axclrtEngineGetInputNameByIndex(axclrtEngineIOInfo ioInfo, uint32_t 
 ```c
 const char *axclrtEngineGetOutputNameByIndex(axclrtEngineIOInfo ioInfo, uint32_t index);
 ```
-**使用说明**：
+**Description**：
 
-此函数获取指定输出的名称。
+This function retrieves the name of the specified output.
 
-**参数**：
-- `ioInfo [IN]`：axclrtEngineIOInfo 指针。
-- `index [IN]`：输出 IO 索引。
+**Parameters**：
+- `ioInfo [IN]`: Pointer to `axclrtEngineIOInfo`.
+- `index [IN]`: Output IO index.
 
-**限制**：
+**Restrictions**：
 
-返回的输出张量名称与 `ioInfo` 的生命周期相同。
+Returned output tensor names share the same lifecycle as the `ioInfo` object.
 
 ---
 (axclrtenginegetinputindexbyname)=
@@ -988,17 +987,17 @@ const char *axclrtEngineGetOutputNameByIndex(axclrtEngineIOInfo ioInfo, uint32_t
 ```c
 int32_t axclrtEngineGetInputIndexByName(axclrtEngineIOInfo ioInfo, const char *name);
 ```
-**使用说明**：
+**Description**：
 
-此函数根据输入张量的名称获取输入索引。
+This function obtains the input index based on the name of the input tensor.
 
-**参数**：
-- `ioInfo [IN]`：模型描述。
-- `name [IN]`：输入张量名称。
+**Parameters**：
+- `ioInfo [IN]`: Pointer to `axclrtEngineIOInfo`.
+- `name [IN]`: Input tensor name.
 
-**限制**：
+**Restrictions**：
 
-无特别限制。
+No special restrictions.
 
 ---
 (axclrtenginegetoutputindexbyname)=
@@ -1006,17 +1005,17 @@ int32_t axclrtEngineGetInputIndexByName(axclrtEngineIOInfo ioInfo, const char *n
 ```c
 int32_t axclrtEngineGetOutputIndexByName(axclrtEngineIOInfo ioInfo, const char *name);
 ```
-**使用说明**：
+**Description**：
 
-此函数根据输出张量的名称获取输出索引。
+This function obtains the output index based on the name of the output tensor.
 
-**参数**：
-- `ioInfo [IN]`：模型描述。
-- `name [IN]`：输出张量名称。
+**Parameters**：
+- `ioInfo [IN]`: Pointer to `axclrtEngineIOInfo`.
+- `name [IN]`: Output tensor name.
 
-**限制**：
+**Restrictions**：
 
-无特别限制。
+No special restrictions.
 
 ---
 (axclrtenginegetinputdims)=
@@ -1024,19 +1023,19 @@ int32_t axclrtEngineGetOutputIndexByName(axclrtEngineIOInfo ioInfo, const char *
 ```c
 axclError axclrtEngineGetInputDims(axclrtEngineIOInfo ioInfo, uint32_t group, uint32_t index, axclrtEngineIODims *dims);
 ```
-**使用说明**：
+**Description**：
 
-此函数获取指定输入的维度信息。
+This function obtains the dimension information for the specified input.
 
-**参数**：
-- `ioInfo [IN]`：axclrtEngineIOInfo 指针。
-- `group [IN]`：输入形状组索引。
-- `index [IN]`：输入张量索引。
-- `dims [OUT]`：返回的维度信息。
+**Parameters**：
+- `ioInfo [IN]`: Pointer to `axclrtEngineIOInfo`.
+- `group [IN]`: Input shape group index.
+- `index [IN]`: Input tensor index.
+- `dims [OUT]`: Returned dimensional information.
 
-**限制**：
+**Restrictions**：
 
-`axclrtEngineIODims` 的存储空间是用户申请的，用户在模型 `axclrtEngineIOInfo` 销毁前应释放 `axclrtEngineIODims`。
+Storage for `axclrtEngineIODims` must be allocated by the user; free it before destroying the `axclrtEngineIOInfo` object.
 
 ---
 (axclrtenginegetoutputdims)=
@@ -1044,19 +1043,19 @@ axclError axclrtEngineGetInputDims(axclrtEngineIOInfo ioInfo, uint32_t group, ui
 ```c
 axclError axclrtEngineGetOutputDims(axclrtEngineIOInfo ioInfo, uint32_t group, uint32_t index, axclrtEngineIODims *dims);
 ```
-**使用说明**：
+**Description**：
 
-此函数获取指定输出的维度信息。
+This function obtains the dimension information for the specified output.
 
-**参数**：
-- `ioInfo [IN]`：axclrtEngineIOInfo 指针。
-- `group [IN]`：输出形状组索引。
-- `index [IN]`：输出张量索引。
-- `dims [OUT]`：返回的维度信息。
+**Parameters**：
+- `ioInfo [IN]`: Pointer to `axclrtEngineIOInfo`.
+- `group [IN]`: Output shape group index.
+- `index [IN]`: Output tensor index.
+- `dims [OUT]`: Returned dimensional information.
 
-**限制**：
+**Restrictions**：
 
-`axclrtEngineIODims` 的存储空间是用户申请的，用户在模型 `axclrtEngineIOInfo` 销毁前应释放 `axclrtEngineIODims`。
+Storage for `axclrtEngineIODims` must be allocated by the user; free it before destroying the `axclrtEngineIOInfo` object.
 
 ---
 (axclrtenginecreateio)=
@@ -1064,17 +1063,17 @@ axclError axclrtEngineGetOutputDims(axclrtEngineIOInfo ioInfo, uint32_t group, u
 ```c
 axclError axclrtEngineCreateIO(axclrtEngineIOInfo ioInfo, axclrtEngineIO *io);
 ```
-**使用说明**：
+**Description**：
 
-此函数创建类型为 `axclrtEngineIO` 的数据。
+This function creates data of type `axclrtEngineIO`.
 
-**参数**：
-- `ioInfo [IN]`：axclrtEngineIOInfo 指针。
-- `io [OUT]`：创建的 axclrtEngineIO 指针。
+**Parameters**：
+- `ioInfo [IN]`: Pointer to `axclrtEngineIOInfo`.
+- `io [OUT]`: Pointer to the created `axclrtEngineIO`.
 
-**限制**：
+**Restrictions**：
 
-用户在模型 `ID` 销毁前应调用 `axclrtEngineDestroyIO` 来释放 `axclrtEngineIO`。
+The user should call `axclrtEngineDestroyIO` to free the `axclrtEngineIO` before the model ID is destroyed.
 
 ---
 (axclrtenginedestroyio)=
@@ -1082,16 +1081,16 @@ axclError axclrtEngineCreateIO(axclrtEngineIOInfo ioInfo, axclrtEngineIO *io);
 ```c
 axclError axclrtEngineDestroyIO(axclrtEngineIO io);
 ```
-**使用说明**：
+**Description**：
 
-此函数用于销毁类型为 `axclrtEngineIO` 的数据。
+This function destroys data of type `axclrtEngineIO`.
 
-**参数**：
-- `io [IN]`：要销毁的 axclrtEngineIO 指针。
+**Parameters**：
+- `io [IN]`: The `axclrtEngineIO` pointer to destroy.
 
-**限制**：
+**Restrictions**：
 
-无特别限制。
+No special restrictions.
 
 ---
 (axclrtenginesetinputbufferbyindex)=
@@ -1099,19 +1098,19 @@ axclError axclrtEngineDestroyIO(axclrtEngineIO io);
 ```c
 axclError axclrtEngineSetInputBufferByIndex(axclrtEngineIO io, uint32_t index, const void *dataBuffer, uint64_t size);
 ```
-**使用说明**：
+**Description**：
 
-此函数通过 IO 索引设置输入数据缓冲区。
+This function sets an input data buffer by IO index.
 
-**参数**：
-- `io [IN]`：axclrtEngineIO 数据缓冲区的地址。
-- `index [IN]`：输入张量索引。
-- `dataBuffer [IN]`：要添加的数据缓冲区地址。
-- `size [IN]`：数据缓冲区大小。
+**Parameters**：
+- `io [IN]`: Address of the `axclrtEngineIO` data buffer.
+- `index [IN]`: Input tensor index.
+- `dataBuffer [IN]`: Address of the data buffer to set.
+- `size [IN]`: Size of the data buffer.
 
-**限制**：
+**Restrictions**：
 
-数据缓冲区必须是设备内存，用户需要自行管理和释放。
+Data buffers must be device memory; the user is responsible for managing and freeing them.
 
 ---
 (axclrtenginesetoutputbufferbyindex)=
@@ -1119,19 +1118,19 @@ axclError axclrtEngineSetInputBufferByIndex(axclrtEngineIO io, uint32_t index, c
 ```c
 axclError axclrtEngineSetOutputBufferByIndex(axclrtEngineIO io, uint32_t index, const void *dataBuffer, uint64_t size);
 ```
-**使用说明**：
+**Description**：
 
-此函数通过 IO 索引设置输出数据缓冲区。
+This function sets an output data buffer by IO index.
 
-**参数**：
-- `io [IN]`：axclrtEngineIO 数据缓冲区的地址。
-- `index [IN]`：输出张量索引。
-- `dataBuffer [IN]`：要添加的数据缓冲区地址。
-- `size [IN]`：数据缓冲区大小。
+**Parameters**：
+- `io [IN]`: Address of the `axclrtEngineIO` data buffer.
+- `index [IN]`: Output tensor index.
+- `dataBuffer [IN]`: Address of the data buffer to set.
+- `size [IN]`: Size of the data buffer.
 
-**限制**：
+**Restrictions**：
 
-数据缓冲区必须是设备内存，用户需要自行管理和释放。
+Data buffers must be device memory; the user is responsible for managing and freeing them.
 
 ---
 (axclrtenginesetinputbufferbyname)=
@@ -1139,19 +1138,19 @@ axclError axclrtEngineSetOutputBufferByIndex(axclrtEngineIO io, uint32_t index, 
 ```c
 axclError axclrtEngineSetInputBufferByName(axclrtEngineIO io, const char *name, const void *dataBuffer, uint64_t size);
 ```
-**使用说明**：
+**Description**：
 
-此函数通过 IO 名称设置输入数据缓冲区。
+This function sets an input data buffer by IO name.
 
-**参数**：
-- `io [IN]`：axclrtEngineIO 数据缓冲区的地址。
-- `name [IN]`：输入张量名称。
-- `dataBuffer [IN]`：要添加的数据缓冲区地址。
-- `size [IN]`：数据缓冲区大小。
+**Parameters**：
+- `io [IN]`: Address of the `axclrtEngineIO` data buffer.
+- `name [IN]`: Input tensor name.
+- `dataBuffer [IN]`: Address of the data buffer to set.
+- `size [IN]`: Size of the data buffer.
 
-**限制**：
+**Restrictions**：
 
-数据缓冲区必须是设备内存，用户需要自行管理和释放。
+Data buffers must be device memory; the user is responsible for managing and freeing them.
 
 ---
 (axclrtenginesetoutputbufferbyname)=
@@ -1159,19 +1158,19 @@ axclError axclrtEngineSetInputBufferByName(axclrtEngineIO io, const char *name, 
 ```c
 axclError axclrtEngineSetOutputBufferByName(axclrtEngineIO io, const char *name, const void *dataBuffer, uint64_t size);
 ```
-**使用说明**：
+**Description**：
 
-此函数通过 IO 名称设置输出数据缓冲区。
+This function sets an output data buffer by IO name.
 
-**参数**：
-- `io [IN]`：axclrtEngineIO 数据缓冲区的地址。
-- `name [IN]`：输出张量名称。
-- `dataBuffer [IN]`：要添加的数据缓冲区地址。
-- `size [IN]`：数据缓冲区大小。
+**Parameters**：
+- `io [IN]`: Address of the `axclrtEngineIO` data buffer.
+- `name [IN]`: Output tensor name.
+- `dataBuffer [IN]`: Address of the data buffer to set.
+- `size [IN]`: Size of the data buffer.
 
-**限制**：
+**Restrictions**：
 
-数据缓冲区必须是设备内存，用户需要自行管理和释放。
+Data buffers must be device memory; the user is responsible for managing and freeing them.
 
 ---
 (axclrtenginegetinputbufferbyindex)=
@@ -1179,19 +1178,19 @@ axclError axclrtEngineSetOutputBufferByName(axclrtEngineIO io, const char *name,
 ```c
 axclError axclrtEngineGetInputBufferByIndex(axclrtEngineIO io, uint32_t index, void **dataBuffer, uint64_t *size);
 ```
-**使用说明**：
+**Description**：
 
-此函数通过 IO 索引获取输入数据缓冲区。
+This function retrieves the input data buffer by IO index.
 
-**参数**：
-- `io [IN]`：axclrtEngineIO 数据缓冲区的地址。
-- `index [IN]`：输入张量索引。
-- `dataBuffer [OUT]`：数据缓冲区地址。
-- `size [IN]`：数据缓冲区大小。
+**Parameters**：
+- `io [IN]`: Address of the `axclrtEngineIO` data buffer.
+- `index [IN]`: Input tensor index.
+- `dataBuffer [OUT]`: Address of the data buffer.
+- `size [IN]`: Size of the data buffer.
 
-**限制**：
+**Restrictions**：
 
-数据缓冲区必须是设备内存，用户需要自行管理和释放。
+Data buffers must be device memory; the user is responsible for managing and freeing them.
 
 ---
 (axclrtenginegetoutputbufferbyindex)=
@@ -1199,19 +1198,19 @@ axclError axclrtEngineGetInputBufferByIndex(axclrtEngineIO io, uint32_t index, v
 ```c
 axclError axclrtEngineGetOutputBufferByIndex(axclrtEngineIO io, uint32_t index, void **dataBuffer, uint64_t *size);
 ```
-**使用说明**：
+**Description**：
 
-此函数通过 IO 索引获取输出数据缓冲区。
+This function retrieves the output data buffer by IO index.
 
-**参数**：
-- `io [IN]`：axclrtEngineIO 数据缓冲区的地址。
-- `index [IN]`：输出张量索引。
-- `dataBuffer [OUT]`：数据缓冲区地址。
-- `size [IN]`：数据缓冲区大小。
+**Parameters**：
+- `io [IN]`: Address of the `axclrtEngineIO` data buffer.
+- `index [IN]`: Output tensor index.
+- `dataBuffer [OUT]`: Address of the data buffer.
+- `size [IN]`: Size of the data buffer.
 
-**限制**：
+**Restrictions**：
 
-数据缓冲区必须是设备内存，用户需要自行管理和释放。
+Data buffers must be device memory; the user is responsible for managing and freeing them.
 
 ---
 (axclrtenginegetinputbufferbyname)=
@@ -1219,18 +1218,18 @@ axclError axclrtEngineGetOutputBufferByIndex(axclrtEngineIO io, uint32_t index, 
 ```c
 axclError axclrtEngineGetInputBufferByName(axclrtEngineIO io, const char *name, void **dataBuffer, uint64_t *size);
 ```
-**使用说明**：
+**Description**：
 
-此函数通过 IO 名称获取输入数据缓冲区。
+This function retrieves the input data buffer by IO name.
 
-**参数**：
-- `io [IN]`：axclrtEngineIO 数据缓冲区的地址。
-- `name [IN]`：输入张量名称。
-- `dataBuffer [OUT]`：数据缓冲区地址。
+**Parameters**：
+- `io [IN]`: Address of the `axclrtEngineIO` data buffer.
+- `name [IN]`: Input tensor name.
+- `dataBuffer [OUT]`: Address of the data buffer.
 
-**限制**：
+**Restrictions**：
 
-数据缓冲区必须是设备内存，用户需要自行管理和释放。
+Data buffers must be device memory; the user is responsible for managing and freeing them.
 
 ---
 (axclrtenginegetoutputbufferbyname)=
@@ -1238,18 +1237,18 @@ axclError axclrtEngineGetInputBufferByName(axclrtEngineIO io, const char *name, 
 ```c
 axclError axclrtEngineGetOutputBufferByName(axclrtEngineIO io, const char *name, void **dataBuffer, uint64_t *size);
 ```
-**使用说明**：
+**Description**：
 
-此函数通过 IO 名称获取输出数据缓冲区。
+This function retrieves the output data buffer by IO name.
 
-**参数**：
-- `io [IN]`：axclrtEngineIO 数据缓冲区的地址。
-- `name [IN]`：输出张量名称。
-- `dataBuffer [OUT]`：数据缓冲区地址。
+**Parameters**：
+- `io [IN]`: Address of the `axclrtEngineIO` data buffer.
+- `name [IN]`: Output tensor name.
+- `dataBuffer [OUT]`: Address of the data buffer.
 
-**限制**：
+**Restrictions**：
 
-数据缓冲区必须是设备内存，用户需要自行管理和释放。
+Data buffers must be device memory; the user is responsible for managing and freeing them.
 
 ---
 (axclrtenginesetdynamicbatchsize)=
@@ -1257,17 +1256,17 @@ axclError axclrtEngineGetOutputBufferByName(axclrtEngineIO io, const char *name,
 ```c
 axclError axclrtEngineSetDynamicBatchSize(axclrtEngineIO io, uint32_t batchSize);
 ```
-**使用说明**：
+**Description**：
 
-此函数在动态批处理场景中设置一次处理的图像数量。
+This function sets the number of images processed in one pass in dynamic batching scenarios.
 
-**参数**：
-- `io [IN]`：模型推理的 IO。
-- `batchSize [IN]`：一次处理的图像数量。
+**Parameters**：
+- `io [IN]`: The engine IO used for inference.
+- `batchSize [IN]`: Number of images to process at once.
 
-**限制**：
+**Restrictions**：
 
-无特别限制。
+No special restrictions.
 
 ---
 (axclrtenginecreatecontext)=
@@ -1275,17 +1274,17 @@ axclError axclrtEngineSetDynamicBatchSize(axclrtEngineIO io, uint32_t batchSize)
 ```c
 axclError axclrtEngineCreateContext(uint64_t modelId, uint64_t *contextId);
 ```
-**使用说明**：
+**Description**：
 
-此函数为模型 `ID`  创建一个模型运行环境上下文。
+This function creates a runtime context for the specified model `ID`.
 
-**参数**：
-- `modelId [IN]`：模型 `ID` 。
-- `contextId [OUT]`：创建的上下文 `ID` 。
+**Parameters**：
+- `modelId [IN]`: Model `ID`.
+- `contextId [OUT]`: The created context ID.
 
-**限制**：
+**Restrictions**：
 
-一个模型 `ID`  可以创建多个运行上下文，每个上下文仅在其自己的设置和内存空间中运行。
+A model `ID` can create multiple runtime contexts, each running only within its own settings and memory space.
 
 ---
 (axclrtengineexecute)=
@@ -1293,19 +1292,19 @@ axclError axclrtEngineCreateContext(uint64_t modelId, uint64_t *contextId);
 ```c
 axclError axclrtEngineExecute(uint64_t modelId, uint64_t contextId, uint32_t group, axclrtEngineIO io);
 ```
-**使用说明**：
+**Description**：
 
-此函数执行模型的同步推理，直到返回推理结果。
+This function performs synchronous inference for the model until the inference result is returned.
 
-**参数**：
-- `modelId [IN]`：模型 `ID` 。
-- `contextId [IN]`：模型推理上下文。
-- `group [IN]`：模型形状组索引。
-- `io [IN]`：模型推理的 IO。
+**Parameters**：
+- `modelId [IN]`: Model `ID`.
+- `contextId [IN]`: Model inference context.
+- `group [IN]`: Model shape group index.
+- `io [IN]`: IO for model inference.
 
-**限制**：
+**Restrictions**：
 
-无特别限制。
+No special restrictions.
 
 ---
 (axclrtengineexecuteasync)=
@@ -1313,28 +1312,28 @@ axclError axclrtEngineExecute(uint64_t modelId, uint64_t contextId, uint32_t gro
 ```c
 axclError axclrtEngineExecuteAsync(uint64_t modelId, uint64_t contextId, uint32_t group, axclrtEngineIO io, axclrtStream stream);
 ```
-**使用说明**：
+**Description**：
 
-此函数执行模型的异步推理，直到返回推理结果。
+This function performs asynchronous inference for the model and returns immediately; use the provided `stream` to synchronize.
 
-**参数**：
-- `modelId [IN]`：模型 `ID` 。
-- `contextId [IN]`：模型推理上下文。
-- `group [IN]`：模型形状组索引。
-- `io [IN]`：模型推理的 IO。
-- `stream [IN]`：流。
+**Parameters**：
+- `modelId [IN]`: Model `ID`.
+- `contextId [IN]`: Model inference context.
+- `group [IN]`: Model shape group index.
+- `io [IN]`: IO for model inference.
+- `stream [IN]`: The stream used for synchronization.
 
-**限制**：
+**Restrictions**：
 
-无特别限制。
+No special restrictions.
 
 
 
 ## native
 
-- AXCL NATIVE模块支持SYS、VDEC、VENC、IVPS、DMADIM、ENGINE、IVE模块。
+- The AXCL NATIVE module supports SYS, VDEC, VENC, IVPS, DMADIM, ENGINE, and IVE modules.
 
-- AXCL NATIVE API和AX SDK API参数完全一致，差别在于函数命名由原来的AX前缀变更为AXCL，示例：
+- The AXCL NATIVE APIs have identical parameters to the AX SDK APIs; the main difference is the function name prefix changed from `AX` to `AXCL`, as shown in the example below:
 
   ```c
   AX_S32 AXCL_SYS_Init(AX_VOID);
@@ -1360,11 +1359,11 @@ axclError axclrtEngineExecuteAsync(uint64_t modelId, uint64_t contextId, uint32_
   ...
   ```
 
-- 请参阅AX SDK API的文档，例如：《AX SYS API 文档.docx》、《AX VDEC API 文档.docx》等。
+- For more details refer to the AX SDK API documentation, such as "AX SYS API Documentation.docx" and "AX VDEC API Documentation.docx".
 
-- 动态库so命名由原来的libax_xxx.so 变更为libaxcl_xxx.so，对照表如下：
+- Shared library names have changed from `libax_xxx.so` to `libaxcl_xxx.so`. Mapping table:
 
-  | 模块   | AX SDK          | AXCL NATIVE SDK   |
+  | Module | AX SDK          | AXCL NATIVE SDK   |
   | ------ | --------------- | ----------------- |
   | SYS    | libax_sys.so    | libaxcl_sys.so    |
   | VDEC   | libax_vdec.so   | libaxcl_vdec.so   |
@@ -1374,9 +1373,9 @@ axclError axclrtEngineExecuteAsync(uint64_t modelId, uint64_t contextId, uint32_
   | ENGINE | libax_engine.so | libaxcl_engine.so |
   | IVE    | libax_ive.so    | libaxcl_ive.so    |
 
-- 部分AX SDK API在AXCL NATIVE中没有支持，具体列表如下：
+- Some AX SDK APIs are not available in AXCL NATIVE; see the list below for details:
 
-  | 模块   | AXCL NATIVE API                 | 说明                                              |
+  | Module | AXCL NATIVE API                 | Description                                        |
   | ------ | ------------------------------- | ------------------------------------------------- |
   | SYS    | AXCL_SYS_EnableTimestamp        |                                                   |
   |        | AXCL_SYS_Sleep                  |                                                   |
@@ -1388,7 +1387,7 @@ axclError axclrtEngineExecuteAsync(uint64_t modelId, uint64_t contextId, uint32_
   |        | AXCL_VENC_JpegGetThumbnail      |                                                   |
   | IVPS   | AXCL_IVPS_GetChnFd              |                                                   |
   |        | AXCL_IVPS_CloseAllFd            |                                                   |
-  | DMADIM | AXCL_DMADIM_Cfg                 | 不支持设置回调函数，即AX_DMADIM_MSG_T.pfnCallBack |
+  | DMADIM | AXCL_DMADIM_Cfg                 | Does not support setting callback functions, i.e., AX_DMADIM_MSG_T.pfnCallBack |
   | IVE    | AXCL_IVE_NPU_CreateMatMulHandle |                                                   |
   |        | AX_IVE_NPU_DestroyMatMulHandle  |                                                   |
   |        | AX_IVE_NPU_MatMul               |                                                   |
@@ -1775,9 +1774,9 @@ axclError axcl_ppl_set_attr(axcl_ppl ppl, const char* name, const void* attr);
 
 
 
-## 错误代码
+## Error Codes
 
-### 定义
+### Definition
 
 ```c
 typedef int32_t axclError;
@@ -1833,11 +1832,11 @@ typedef enum {
 
 :::{Note}
 
-错误代码分为AXCL运行时库和AX NATIVE SDK两种错误代码，通过`axclError`的第三字节区分。若第三个字节等于AX_ID_AXCL(0x30)，标识是AXCL运行时库的错误代码，反之则标识透传Device的AX NATIVE SDK模块的错误代码。
-- AXCL运行时库错误代码：参阅 `axcl_rt_xxx.h`头文件。
-- Device的NATIVE SDK错误代码是透传到HOST侧，参阅《AX 软件错误码文档》。
+Error codes are split into AXCL runtime library errors and AX NATIVE SDK device errors, distinguished by the third byte in `axclError`. If the third byte equals `AX_ID_AXCL` (0x30), the code denotes an AXCL runtime error; otherwise, it denotes a device-side AX NATIVE SDK error forwarded to the host.
+- AXCL runtime errors: see the `axcl_rt_xxx.h` header files for details.
+- Device NATIVE SDK errors: these are passed through to the host; refer to the "AX Software Error Codes" document for details.
 :::
 
-### 解析
+### Parsing
 
-请访问 [AXCL错误代码解析](https://gakki2019.github.io/axcl/) 在线解析错误代码。
+Visit the [AXCL Error Code Lookup](https://gakki2019.github.io/axcl/) webpage to decode an error code online.

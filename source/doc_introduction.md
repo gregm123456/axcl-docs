@@ -1,103 +1,103 @@
-# 简介
+# Introduction
 
-## 概述
+## Overview
 
-AXCL 是用于在 [AXERA](https://www.axera-tech.com/) 芯片平台上开发深度神经网络推理、转码等应用的 C、Python 语言 API 库，提供运行资源管理，内存管理，模型加载和执行，媒体数据处理等 API，其逻辑架构图如下图所示：
+AXCL is a C and Python language API library for developing deep neural network inference, transcoding, and other applications on the [AXERA](https://www.axera-tech.com/) chip platform. It provides APIs for runtime resource management, memory management, model loading and execution, and media data processing. The logical architecture diagram is shown below:
 
 ![](../res/axcl_architecture.svg)
 
 
 
-## 概念
+## Concepts
 
-AXCL 运行时库有 Device、Context、Stream、Task 等基本概念，其关系如下图所示：
+The AXCL runtime library has basic concepts such as Device, Context, Stream, and Task, and their relationships are shown in the following diagram:
 
 ![](../res/axcl_concept.svg)
 
-- Device：提供计算和媒体处理的硬件设备，通过 PCIe 接口和 Host 连接。
-  - Device 的生命周期源于首次调用 `axclrtSetDevice` 接口。
-  - Device 使用引用计数管理生命周期，`axclrtSetDevice` 引用计数加 1，`axclrtResetDevice` 引用计数减1。
-  - 当引用计数减少为零时，本进程中的 Device 资源不可用。
-  - **若存在多个 Device，多个 Device 之间的内存资源不能共享**。
-- Context：执行上下文容器，管理包括 Stream，内存等生命周期，Context 和应用线程绑定。Context 一定隶属于一个唯一的 Device。Context 分为隐式和显示两种：
-  - 隐式 Context（即默认 Context）：
-    - 调用 `axclrtSetDevice` 接口指定设备时，系统会创建一个隐式 Context，当 `axclrtResetDevice` 接口引用计数为零时隐式 Context 被自动销毁。
-    - 一个 Device 只会有一个隐式 Context，隐式 Context 不能通过 `axclrtDestroyContext` 接口销毁。
-  - 显示Context：
-    - 调用 `axclrtCreateContext` 接口显示创建，调用 `axclrtDestroyContext` 接口销毁。
-    - 进程内的 Context 是共享的，可以通过 `axclrtSetCurrentContext` 进行切换。**推荐应用为每个线程中创建和销毁显示 Context**。
-- Stream：执行任务流，隶属于 Context，同一个 Stream 的任务执行保序。Stream 分为隐式和显示两种：
-  - 隐式 Stream（即默认 Stream）：
-    - 每个 Context 都会创建一个隐式 Stream，生命周期归属于 Context。
-    - native sdk 模块（比如`AXCL_VDEC_XXX`、`AXCL_SYS_XXX`等）使用隐式 Stream。
-  - 显示Stream：
-    - 由 `axclrtCreateStream` 接口创建，由 `axclrtDestroyStream` 接口销毁。
-    - 当显示 Stream 归属的 Context 被销毁或生命周期结束后，即使该 Stream 没有被销毁，亦不可使用。
-- Task：Device 任务执行实体，应用不可见。
+- Device: Hardware device that provides computing and media processing, connected to the Host via PCIe interface.
+  - The Device lifecycle starts with the first call to the `axclrtSetDevice` interface.
+  - Device uses reference counting to manage lifecycle; `axclrtSetDevice` increments the reference count by 1, `axclrtResetDevice` decrements it by 1.
+  - When the reference count decreases to zero, the Device resources in this process become unavailable.
+  - **If multiple Devices exist, memory resources cannot be shared between multiple Devices**.
+- Context: Execution context container that manages lifecycles including Stream and memory; Context is bound to application threads. Context must belong to a unique Device. Context is divided into implicit and explicit types:
+  - Implicit Context (i.e., default Context):
+    - When the `axclrtSetDevice` interface is called to specify a device, the system creates an implicit Context, which is automatically destroyed when the `axclrtResetDevice` interface reference count reaches zero.
+    - A Device will have only one implicit Context, and the implicit Context cannot be destroyed via the `axclrtDestroyContext` interface.
+  - Explicit Context:
+    - Explicitly created by calling the `axclrtCreateContext` interface, destroyed by calling the `axclrtDestroyContext` interface.
+    - Contexts within the process are shared and can be switched via `axclrtSetCurrentContext`. **It is recommended to create and destroy explicit Contexts for each thread in the application**.
+- Stream: Execution task stream, belonging to Context; tasks in the same Stream are executed in order. Stream is divided into implicit and explicit types:
+  - Implicit Stream (i.e., default Stream):
+    - Each Context creates an implicit Stream, whose lifecycle belongs to the Context.
+    - Native SDK modules (such as `AXCL_VDEC_XXX`, `AXCL_SYS_XXX`, etc.) use implicit Stream.
+  - Explicit Stream:
+    - Created by the `axclrtCreateStream` interface, destroyed by the `axclrtDestroyStream` interface.
+    - When the Context to which the explicit Stream belongs is destroyed or its lifecycle ends, the Stream cannot be used even if it has not been destroyed.
+- Task: Device task execution entity, invisible to applications.
 
 
 
-## 应用线程和Context
+## Application Threads and Context
 
-- 一个应用线程一定会绑定一个 Context，所有Device的任务都必须基于 Context。
-- 一个线程中当前会有一个唯一的 Context，Context 中绑定了本线程任务执行的 Device。
-- 应用线程中支持通过 `axclrCreateContext` 创建多个 Context，但一个线程同一时刻只能使用一个 Context。连续创建多个 Context，线程绑定的是最后一个创建的 Context。
-- 进程内支持通过 `axclrtSetCurrentContext` 绑定当前线程的 Context，连续多次调用 `axclrtSetCurrentContext`，最终绑定的是最后一次的 Context。
-- 多线程推荐为每个线程显示创建一个Context。
-- 推荐通过 `axclrtSetCurrentContext` 切换 Device。
+- An application thread must be bound to a Context; all Device tasks must be based on Context.
+- There will be a unique Context in a thread, with the Device for task execution in this thread bound to the Context.
+- Application threads support creating multiple Contexts via `axclrCreateContext`, but a thread can only use one Context at a time. When multiple Contexts are created consecutively, the thread is bound to the last created Context.
+- Within the process, the current thread's Context can be bound via `axclrtSetCurrentContext`; after multiple consecutive calls to `axclrtSetCurrentContext`, the final binding is the last one.
+- For multi-threading, it is recommended to create an explicit Context for each thread.
+- It is recommended to switch Devices via `axclrtSetCurrentContext`.
 
 :::{tip}
 
-   SDK axcl/sample/runtime 提供了如何在线程中创建和销毁Context的示例代码。
+   The SDK axcl/sample/runtime provides sample code on how to create and destroy Context in threads.
 
 :::
 
 
-## 参考硬件
+## Reference Hardware
 
 ### AX-M1
 
-[瑞莎智核 AX-M1](https://docs.radxa.com/aicore/ax-m1) 是一款基于爱芯元智公司 AX8850 SoC 推出的高性能 M.2 加速模组，具有高算力、高能效比等特性，专为边缘智能计算与 AI 推理应用打造。
-集成多核高性能 CPU 和高算力 NPU，具备卓越的多媒体处理能力，为各类边缘 AI 场景提供高效、灵活的硬件支撑。
+[Radxa AX-M1](https://docs.radxa.com/aicore/ax-m1) is a high-performance M.2 acceleration module launched based on AXERA's AX8850 SoC, featuring high computing power, high energy efficiency, and other characteristics, specially designed for edge intelligent computing and AI inference applications.
+Integrates multi-core high-performance CPU and high-computing NPU, with excellent multimedia processing capabilities, providing efficient and flexible hardware support for various edge AI scenarios.
 
-**产品图片**
+**Product Image**
 
 ![](../res/AX-M1.png)
 
-**产品规格**
+**Product Specifications**
 
-|              | 描述                                                    |
+|              | Description                                                    |
 | ------------ | ------------------------------------------------------- |
-| CPU       | 八核 Cortex-A55，主频高达 1.5GHz                            |
-| 内存         | 8GB LPDDR4x                                             |
-| NPU         | 24TOPS@INT8；支持矩阵运算单元和智能视觉引擎                 |
-|              | 支持 CNN、Transformer 模型部署，支持 LLM、VLM 部署      |
-| VPU        | 支持 H.264/H.265 8K@30fps编解码和 16 路 1080p@30fps 解码  |
-| 硬件适配	     | 支持 Intel、AMD、Rockchip 等主机平台                    |
-| 系统适配	     | 支持 Ubuntu、Debian、CentOS 等主流 Linux 发行版         |
-| 外形尺寸     | M.2 2280，M Key                                         |
-| 工作电压     | 3.3 V                                                   |
-| 系统功耗	    | ≤ 8W                                                   |
+| CPU       | Octa-core Cortex-A55, up to 1.5GHz main frequency                            |
+| Memory         | 8GB LPDDR4x                                             |
+| NPU         | 24TOPS@INT8; supports matrix operation units and intelligent vision engines                 |
+|              | Supports CNN, Transformer model deployment, supports LLM, VLM deployment      |
+| VPU        | Supports H.264/H.265 8K@30fps encoding/decoding and 16-channel 1080p@30fps decoding  |
+| Hardware Adaptation	     | Supports host platforms such as Intel, AMD, Rockchip                    |
+| System Adaptation	     | Supports mainstream Linux distributions such as Ubuntu, Debian, CentOS         |
+| Form Factor     | M.2 2280, M Key                                         |
+| Operating Voltage     | 3.3 V                                                   |
+| System Power Consumption	    | ≤ 8W                                                   |
 
 ### LLM-8850
 
-[M5Stack LLM‑8850 Card](https://docs.m5stack.com/zh_CN/guide/ai_accelerator/overview) 是 M5Stack 的一款面向边缘设备的 M.2 M‑Key 2242 AI 加速卡。
+[M5Stack LLM‑8850 Card](https://docs.m5stack.com/zh_CN/guide/ai_accelerator/overview) is an M.2 M-Key 2242 AI acceleration card from M5Stack for edge devices.
 
-**产品图片**
+**Product Image**
 
 ![](../res/LLM8850.png)
 
-**产品规格**
+**Product Specifications**
 
-|              | 描述                                                    |
+|              | Description                                                    |
 | ------------ | ------------------------------------------------------- |
-| CPU       | 八核 Cortex-A55，主频高达 1.5GHz                            |
-| 内存         | 8GB LPDDR4x                                             |
-| NPU         | 24TOPS@INT8；支持矩阵运算单元和智能视觉引擎                 |
-|              | 支持 CNN、Transformer 模型部署，支持 LLM、VLM 部署      |
-| VPU        | 支持 H.264/H.265 8K@30fps编解码和 16 路 1080p@30fps 解码  |
-| 硬件适配	     | 支持 Intel、AMD、Rockchip 等主机平台                    |
-| 系统适配	     | 支持 Ubuntu、Debian、CentOS 等主流 Linux 发行版         |
-| 外形尺寸     | M.2 2242，M Key                                         |
-| 工作电压     | 3.3 V                                                   |
-| 系统功耗	    | ≤ 8W                                                   |
+| CPU       | Octa-core Cortex-A55, up to 1.5GHz main frequency                            |
+| Memory         | 8GB LPDDR4x                                             |
+| NPU         | 24TOPS@INT8; supports matrix operation units and intelligent vision engines                 |
+|              | Supports CNN, Transformer model deployment, supports LLM, VLM deployment      |
+| VPU        | Supports H.264/H.265 8K@30fps encoding/decoding and 16-channel 1080p@30fps decoding  |
+| Hardware Adaptation	     | Supports host platforms such as Intel, AMD, Rockchip                    |
+| System Adaptation	     | Supports mainstream Linux distributions such as Ubuntu, Debian, CentOS         |
+| Form Factor     | M.2 2242, M Key                                         |
+| Operating Voltage     | 3.3 V                                                   |
+| System Power Consumption	    | ≤ 8W                                                   |

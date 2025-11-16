@@ -1,19 +1,19 @@
-# Linux 驱动安装
+# Linux Driver Installation
 
-## 环境检查
+## Environment Check
 
 ### IOMMU
 
-在Intel、AMD等X86 CPU平台，不建议打开IOMMU。如果使能了IOMMU，性能会有所影响，建议关闭或者设置pass through模式。
+On Intel, AMD, and other X86 CPU platforms, it is not recommended to enable IOMMU. If IOMMU is enabled, performance may be affected, so it is recommended to disable it or set it to pass through mode.
 
 :::{note}
 
-- SDK V3.4.0（含）已支持IOMMU，**SDK V3.4.0之前的版本IOMMU必须关闭或者设置为pass through模式**。
+- SDK V3.4.0 (inclusive) already supports IOMMU, **for versions before SDK V3.4.0, IOMMU must be disabled or set to pass through mode**.
 
-- 如何查询IOMMU已开启？
+- How to check if IOMMU is enabled?
 
-  - 查看 `ls /sys/kernel/iommu_groups` 目录下是否有IOMMU组，如果目录为空，则当前没有支持IOMMU。
-  - 查看 `dmesg | grep iommu` 和 `cat /proc/cmdline` IOMMU的配置模式。
+  - Check if there are IOMMU groups under the `ls /sys/kernel/iommu_groups` directory; if the directory is empty, IOMMU is not currently supported.
+  - Check `dmesg | grep iommu` and `cat /proc/cmdline` for IOMMU configuration mode.
 
   ```bash
   # iommu enabled
@@ -29,7 +29,7 @@
   BOOT_IMAGE=/boot/vmlinuz-6.8.0-57-generic root=UUID=9f8f7b78-45bd-41c7-a2c4-cef9dfd6b6ca ro quiet splash iommu=pt quiet splash vt.handoff=7
   ```
 
-- 配置IOMMU off或者pass through模式
+- Configure IOMMU to off or pass through mode
 
   - Intel CPU
 
@@ -66,28 +66,28 @@
 
 ### IRQBalance
 
-**IRQBalance** 服务能让硬件中断信号平均上报在多个CPU上，从而解决单CPU过载的问题。子卡运行过程中会通过MSI等方式向主机CPU上报中断，如果多张卡同时运行繁忙的DMA拷贝任务，在未开启 **IRQBalance**的服务器上，中断将集中上报某个CPU，会存在性能问题，而且板卡越多，性能问题越严重。
+**IRQBalance** service allows hardware interrupt signals to be evenly reported across multiple CPUs, thus solving the problem of single CPU overload. During operation, the sub-card will report interrupts to the host CPU via MSI, etc. If multiple cards are running busy DMA copy tasks at the same time, on servers without **IRQBalance** enabled, interrupts will be concentrated on a certain CPU, which may cause performance issues, and the more cards, the more severe the performance problem.
 
 :::{note}
 
-- 查询irqbalance包是否已安装？
+- Check if the irqbalance package is installed?
 
   ```bash
   $ dpkg -s irqbalance # debian
   $ rpm -qi irqbalance # redhat
   ```
 
-- 查询irqbalance是否已启用？
+- Check if irqbalance is enabled?
 
   ```bash
   $ systemctl status irqbalance
   ```
 
-- 启用irqbalance
+- Enable irqbalance
 
   ```bash
-  $ sudo systemctl start irqbalance     # 启动服务
-  $ sudo systemctl enable irqbalance    # 开启启动
+  $ sudo systemctl start irqbalance     # Start service
+  $ sudo systemctl enable irqbalance    # Enable on boot
   ```
 
 :::
@@ -96,7 +96,7 @@
 
 ### SecureBoot
 
-驱动安装暂不支持安全启动模式，需要在UEFI BIOS中关闭SecureBoot。
+Driver installation does not currently support secure boot mode; SecureBoot needs to be disabled in UEFI BIOS.
 
 ```bash
 $ sudo mokutil --sb-state
@@ -105,34 +105,34 @@ SecureBoot disabled
 
 
 
-## 支持列表
+## Supported List
 
-SDK已测试过的支持的主控如下表所示：
+The tested host controllers supported by the SDK are shown in the table below:
 
-| 主控                                | 芯片                         | 安装包                                                       |
+| Host Controller                                | Chip                         | Installation Package                                                       |
 | ----------------------------------- | ---------------------------- | ------------------------------------------------------------ |
-| CentOS 9 stream                     | INTEL、AMD64                 | axcl_host_x86_64_Vxxx.rpm                                    |
-| Kylin V10 SP1                       | INTEL、AMD64、Phytium(ARM64) | **x86_64**: axcl_host_x86_64_Vxxx.deb<br />**arm64**:  axcl_host_aarch64_Vxxx.deb |
-| [UOS](#setup_uos)                   | INTEL、AMD64                 | axcl_host_x86_64_Vxxx.deb                                    |
+| CentOS 9 stream                     | INTEL, AMD64                 | axcl_host_x86_64_Vxxx.rpm                                    |
+| Kylin V10 SP1                       | INTEL, AMD64, Phytium(ARM64) | **x86_64**: axcl_host_x86_64_Vxxx.deb<br />**arm64**:  axcl_host_aarch64_Vxxx.deb |
+| [UOS](#setup_uos)                   | INTEL, AMD64                 | axcl_host_x86_64_Vxxx.deb                                    |
 | RK3588                              | ARM64                        | axcl_host_aarch64_Vxxx.deb                                   |
 | [RaspberryPi5](#setup_raspberrypi5) | ARM64                        | axcl_host_aarch64_Vxxx.deb                                   |
-| OpenEuler                           | INTEL、AMD64                 | axcl_host_x86_64_Vxxx.rpm                                    |
-| ubuntu 18.04/22.04                  | INTEL、AMD64                 | axcl_host_x86_64_Vxxx.deb                                   |
+| OpenEuler                           | INTEL, AMD64                 | axcl_host_x86_64_Vxxx.rpm                                    |
+| ubuntu 18.04/22.04                  | INTEL, AMD64                 | axcl_host_x86_64_Vxxx.deb                                   |
 
 
 
-## 安装依赖
+## Install Dependencies
 
-### PCIe设备
+### PCIe Device
 
-- PCIe设备（比如[芯茧 M.2](#m2_card_xinjian)或者板卡）会内置一个 FLASH（通常是NOR)，FLASH内需要预先[烧写SPL镜像](#spl_download)，该镜像用于PCIe boot。
-- 将PCIe设备接入主控，**lspci**确认是否能识别到设备，参阅[FAQ 如何查询设备章节](#faq_lspci_description)
+- PCIe devices (such as [Xinjian M.2](#m2_card_xinjian) or boards) have a built-in FLASH (usually NOR), and the SPL image needs to be pre-burned into the FLASH, which is used for PCIe boot.
+- Connect the PCIe device to the host controller, use **lspci** to confirm if the device can be recognized, refer to [FAQ How to query device section](#faq_lspci_description)
 
 
 
 ### make
 
-`make -v`检查make是否已安装
+Use `make -v` to check if make is installed
 
 ```bash
 $ make -v
@@ -141,8 +141,8 @@ GNU Make 4.3
 
 ### gcc
 
-- `gcc -v`检查gcc是否已安装。
-- AXCL runtime基于C++17标准开发，因此gcc要求最低为**9.4.0**。如何升级gcc，[参阅FAQ](#gccupdate)。
+- Use `gcc -v` to check if gcc is installed.
+- AXCL runtime is developed based on C++17 standard, so gcc requires a minimum of **9.4.0**. How to upgrade gcc, [refer to FAQ](#gccupdate).
 
 ```bash
 $ gcc -v
@@ -152,7 +152,7 @@ gcc version 12.2.0 (Debian 12.2.0-14)
 
 
 
-## 驱动安装
+## Driver Installation
 
 ### 安装包
 
